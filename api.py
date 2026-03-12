@@ -19,6 +19,7 @@ from slowapi.errors import RateLimitExceeded
 sys.path.insert(0, "/opt/siret-matcher")
 os.chdir("/opt/siret-matcher")
 
+from siret_matcher.search_router import router as search_router
 from siret_matcher.models import Prospect, SireneResult
 from siret_matcher.matcher import match_one, match_batch
 from siret_matcher.db import SireneDB
@@ -31,6 +32,7 @@ logger = logging.getLogger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="SIRET Matcher API", version="2.0")
 app.state.limiter = limiter
+app.include_router(search_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -153,6 +155,7 @@ async def startup():
     )
     try:
         await db.connect()
+        app.state.pool = db.pool
         stats = await db.get_stats()
         logger.info(f"Base Sirene connectee: {stats['active']:,} etablissements actifs")
     except Exception as e:
