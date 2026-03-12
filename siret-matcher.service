@@ -1,0 +1,16 @@
+[Unit]
+Description=SIRET Matcher API
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=postgres
+WorkingDirectory=/opt/siret-matcher
+ExecStart=/opt/siret-matcher/venv/bin/python /opt/siret-matcher/api.py
+Restart=always
+RestartSec=5
+Environment=PYTHONPATH=/opt/siret-matcher
+
+[Install]
+WantedBy=multi-user.target
