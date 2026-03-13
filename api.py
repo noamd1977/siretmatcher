@@ -36,14 +36,9 @@ app.include_router(search_router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://dstcampus.fr",
-        "https://www.dstcampus.fr",
-        "http://localhost:4321",
-        "http://localhost:3000",
-    ],
+    allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["GET"],
+    allow_methods=["GET", "OPTIONS"],
     allow_headers=["*"],
 )
 
