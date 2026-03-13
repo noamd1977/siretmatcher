@@ -9,17 +9,21 @@ from enum import Enum
 
 class TailleEntreprise(str, Enum):
     """Filtre taille d'entreprise basé sur les codes tranche_effectif INSEE."""
-    TPE = "TPE"           # 0-10 salariés
-    PME = "PME"           # 11-249 salariés
-    TPE_PME = "TPE_PME"   # 0-249 salariés
-    TOUTES = "TOUTES"     # Pas de filtre effectif
+    MOINS_11 = "MOINS_11"       # 0-10 salariés
+    DE_11_A_49 = "DE_11_A_49"   # 11-49 salariés
+    PLUS_DE_50 = "PLUS_DE_50"   # 50+ salariés
+    TOUTES = "TOUTES"           # Pas de filtre effectif
 
 
 # Mapping taille → codes tranche_effectif INSEE
+# NN=inconnu, 00=0, 01=1-2, 02=3-5, 03=6-9
+# 11=10-19, 12=20-49
+# 21=50-99, 22=100-199, 31=200-249, 32=250-499, 41=500-999,
+# 42=1000-1999, 51=2000-4999, 52=5000-9999, 53=10000+
 TAILLE_CODES = {
-    "TPE":     ["NN", "00", "01", "02", "03"],
-    "PME":     ["11", "12", "21", "22", "31", "32"],
-    "TPE_PME": ["NN", "00", "01", "02", "03", "11", "12", "21", "22", "31", "32"],
+    "MOINS_11":   ["NN", "00", "01", "02", "03"],
+    "DE_11_A_49": ["11", "12"],
+    "PLUS_DE_50": ["21", "22", "31", "32", "41", "42", "51", "52", "53"],
 }
 
 # Mapping Région → Départements
@@ -50,8 +54,8 @@ class SearchProspectsRequest(BaseModel):
         max_length=101
     )
     taille: TailleEntreprise = Field(
-        default=TailleEntreprise.TPE_PME,
-        description="Filtre taille entreprise"
+        default=TailleEntreprise.TOUTES,
+        description="Filtre taille entreprise (MOINS_11, DE_11_A_49, PLUS_DE_50, TOUTES)"
     )
     idcc: Optional[str] = Field(
         default=None,
