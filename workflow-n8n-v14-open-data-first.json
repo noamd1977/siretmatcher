@@ -1,0 +1,557 @@
+{
+  "name": "V14 — Prospection Open Data First",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Formulaire Prospection V14",
+        "formDescription": "Recherche de prospects dans la base SIRENE (16.7M établissements)",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Région",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  { "option": "ILE_DE_FRANCE" },
+                  { "option": "AUVERGNE_RHONE_ALPES" },
+                  { "option": "BOURGOGNE_FRANCHE_COMTE" },
+                  { "option": "BRETAGNE" },
+                  { "option": "CENTRE_VAL_DE_LOIRE" },
+                  { "option": "CORSE" },
+                  { "option": "GRAND_EST" },
+                  { "option": "HAUTS_DE_FRANCE" },
+                  { "option": "NORMANDIE" },
+                  { "option": "NOUVELLE_AQUITAINE" },
+                  { "option": "OCCITANIE" },
+                  { "option": "PAYS_DE_LA_LOIRE" },
+                  { "option": "PROVENCE_ALPES_COTE_AZUR" },
+                  { "option": "DOM" }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Taille entreprise",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  { "option": "TPE" },
+                  { "option": "PME" },
+                  { "option": "TPE_PME" },
+                  { "option": "TOUTES" }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Mode recherche",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  { "option": "IDCC" },
+                  { "option": "NAF" }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Code IDCC",
+              "fieldType": "text",
+              "requiredField": false,
+              "placeholder": "Ex: 1486 pour Syntec, 1979 pour HCR"
+            },
+            {
+              "fieldLabel": "Préfixe NAF",
+              "fieldType": "text",
+              "requiredField": false,
+              "placeholder": "Ex: 62 pour informatique, 56 pour restauration"
+            },
+            {
+              "fieldLabel": "Limite par page",
+              "fieldType": "number",
+              "requiredField": false,
+              "placeholder": "500"
+            },
+            {
+              "fieldLabel": "Enrichissement email",
+              "fieldType": "dropdown",
+              "requiredField": false,
+              "fieldOptions": {
+                "values": [
+                  { "option": "Oui" },
+                  { "option": "Non" }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "respondWithData": false
+        }
+      },
+      "id": "node-form",
+      "name": "Formulaire Prospection",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "prospection-v14"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\n\nconst REGIONS = {\n  ILE_DE_FRANCE: ['75','77','78','91','92','93','94','95'],\n  AUVERGNE_RHONE_ALPES: ['01','03','07','15','26','38','42','43','63','69','73','74'],\n  BOURGOGNE_FRANCHE_COMTE: ['21','25','39','58','70','71','89','90'],\n  BRETAGNE: ['22','29','35','56'],\n  CENTRE_VAL_DE_LOIRE: ['18','28','36','37','41','45'],\n  CORSE: ['2A','2B'],\n  GRAND_EST: ['08','10','51','52','54','55','57','67','68','88'],\n  HAUTS_DE_FRANCE: ['02','59','60','62','80'],\n  NORMANDIE: ['14','27','50','61','76'],\n  NOUVELLE_AQUITAINE: ['16','17','19','23','24','33','40','47','64','79','86','87'],\n  OCCITANIE: ['09','11','12','30','31','32','34','46','48','65','66','81','82'],\n  PAYS_DE_LA_LOIRE: ['44','49','53','72','85'],\n  PROVENCE_ALPES_COTE_AZUR: ['04','05','06','13','83','84'],\n  DOM: ['971','972','973','974','976'],\n};\n\nconst region = input['Région'] || input.region;\nconst departements = REGIONS[region];\n\nif (!departements) {\n  throw new Error(`Région inconnue : ${region}`);\n}\n\nconst mode = input['Mode recherche'] || input.mode_recherche;\nconst taille = input['Taille entreprise'] || input.taille || 'TPE_PME';\nconst limitInput = parseInt(input['Limite par page'] || input.limit_par_page) || 500;\nconst limit = Math.max(100, Math.min(2000, limitInput));\n\nconst body = {\n  departements: departements,\n  taille: taille,\n  limit: limit,\n  offset: 0\n};\n\nif (mode === 'IDCC') {\n  const idcc = (input['Code IDCC'] || input.idcc || '').trim();\n  if (!idcc) {\n    throw new Error('Mode IDCC sélectionné mais aucun code IDCC fourni');\n  }\n  body.idcc = idcc;\n} else if (mode === 'NAF') {\n  const naf = (input['Préfixe NAF'] || input.naf || '').trim();\n  if (!naf) {\n    throw new Error('Mode NAF sélectionné mais aucun préfixe NAF fourni');\n  }\n  body.naf = naf;\n} else {\n  throw new Error('Mode de recherche invalide. Choisir IDCC ou NAF.');\n}\n\nconst enrichissement = input['Enrichissement email'] || input.enrichissement_email;\nconst enrichirEmail = enrichissement !== 'Non' && enrichissement !== false;\n\nreturn [{\n  json: {\n    region: region,\n    departements: departements,\n    taille: body.taille,\n    mode_recherche: mode,\n    critere: body.idcc || body.naf,\n    limit: body.limit,\n    enrichissement_email: enrichirEmail,\n    api_body: body,\n    sheet_name: `Prospects_${region}_${mode}_${body.idcc || body.naf}_${new Date().toISOString().slice(0,10)}`\n  }\n}];"
+      },
+      "id": "node-preparation",
+      "name": "Préparation requête",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.17.0.1:8042/search/prospects/count",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.api_body) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "node-count",
+      "name": "Count prospects",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-total",
+              "leftValue": "={{ $json.total }}",
+              "rightValue": "0",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "node-if-results",
+      "name": "Résultats trouvés ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [780, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const total = $('Count prospects').first().json.total;\nconst preparation = $('Préparation requête').first().json;\nconst limit = preparation.limit;\n\nconst nbPages = Math.ceil(total / limit);\n\nconsole.log(`Total: ${total} prospects, ${nbPages} pages de ${limit}`);\n\nconst pages = [];\nfor (let i = 0; i < nbPages; i++) {\n  const body = { ...preparation.api_body };\n  body.offset = i * limit;\n  pages.push({\n    json: {\n      page: i + 1,\n      total_pages: nbPages,\n      total_prospects: total,\n      offset: body.offset,\n      limit: limit,\n      api_body: body,\n      sheet_name: preparation.sheet_name,\n      enrichissement_email: preparation.enrichissement_email\n    }\n  });\n}\n\nreturn pages;"
+      },
+      "id": "node-pagination",
+      "name": "Calcul pagination",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1040, -60]
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        },
+        "batchSize": 1
+      },
+      "id": "node-loop",
+      "name": "Boucle pages",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1300, -60]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.17.0.1:8042/search/prospects",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.api_body) }}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "maxTries": 3,
+            "retryInterval": 5000
+          }
+        }
+      },
+      "id": "node-extraction",
+      "name": "Extraction page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, -60]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\n\nif (!response.results || response.results.length === 0) {\n  return [];\n}\n\nreturn response.results.map(prospect => ({\n  json: {\n    siret: prospect.siret,\n    siren: prospect.siren,\n    denomination: prospect.denomination || prospect.denomination_usuelle || prospect.enseigne || '',\n    enseigne: prospect.enseigne || '',\n    naf: prospect.naf || '',\n    code_postal: prospect.code_postal || '',\n    commune: prospect.commune || '',\n    departement: prospect.departement || '',\n    adresse: prospect.adresse || '',\n    tranche_effectif: prospect.tranche_effectif || '',\n    date_creation: prospect.date_creation || '',\n    opco: prospect.opco || '',\n    idcc: prospect.idcc || '',\n    convention_collective: prospect.convention_collective || '',\n    email: '',\n    telephone: '',\n    site_web: ''\n  }\n}));"
+      },
+      "id": "node-flatten",
+      "name": "Aplatir résultats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1820, -60]
+    },
+    {
+      "parameters": {
+        "amount": 0.5,
+        "unit": "seconds"
+      },
+      "id": "node-wait",
+      "name": "Pause 500ms",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2080, -60]
+    },
+    {
+      "parameters": {
+        "operation": "removeDuplicateItems",
+        "compare": "selectedFields",
+        "fieldsToCompare": "siret",
+        "options": {}
+      },
+      "id": "node-dedup",
+      "name": "Dédoublonner par SIRET",
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 1,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-enrichissement",
+              "leftValue": "={{ $('Préparation requête').first().json.enrichissement_email }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "node-if-enrichissement",
+      "name": "Enrichissement activé ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1820, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// PLACEHOLDER — Phase enrichissement email/tel\n// Sera implémenté dans V14.1\n// Pour l'instant, passe les items tels quels\nreturn $input.all();"
+      },
+      "id": "node-enrichissement-stub",
+      "name": "Enrichissement (V14.1)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2080, 120],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "resource": "spreadsheet",
+        "operation": "create",
+        "title": "={{ $('Préparation requête').first().json.sheet_name }}",
+        "sheetsUi": {
+          "sheetValues": [
+            {
+              "title": "Prospects"
+            }
+          ]
+        }
+      },
+      "id": "node-create-sheet",
+      "name": "Créer Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2080, 280],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Créer Google Sheet').first().json.spreadsheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "raw",
+          "value": "Prospects"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "SIRET": "={{ $json.siret }}",
+            "SIREN": "={{ $json.siren }}",
+            "Dénomination": "={{ $json.denomination }}",
+            "Enseigne": "={{ $json.enseigne }}",
+            "Code NAF": "={{ $json.naf }}",
+            "Code Postal": "={{ $json.code_postal }}",
+            "Commune": "={{ $json.commune }}",
+            "Département": "={{ $json.departement }}",
+            "Adresse": "={{ $json.adresse }}",
+            "Effectif": "={{ $json.tranche_effectif }}",
+            "Date création": "={{ $json.date_creation }}",
+            "OPCO": "={{ $json.opco }}",
+            "IDCC": "={{ $json.idcc }}",
+            "Convention Collective": "={{ $json.convention_collective }}",
+            "Email": "={{ $json.email }}",
+            "Téléphone": "={{ $json.telephone }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "node-gsheets",
+      "name": "Export Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2340, 280],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst total = items.length;\nconst preparation = $('Préparation requête').first().json;\nconst sheetUrl = $('Créer Google Sheet').first().json.spreadsheetUrl || '';\n\nreturn [{\n  json: {\n    statut: '✅ Extraction terminée',\n    total_prospects: total,\n    region: preparation.region,\n    critere: `${preparation.mode_recherche}: ${preparation.critere}`,\n    taille: preparation.taille,\n    sheet_name: preparation.sheet_name,\n    google_sheet_url: sheetUrl,\n    date_execution: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "node-resume",
+      "name": "Résumé exécution",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2600, 280]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    statut: '⛔ Aucun prospect trouvé',\n    region: $('Préparation requête').first().json.region,\n    critere: $('Préparation requête').first().json.mode_recherche + ': ' + $('Préparation requête').first().json.critere,\n    taille: $('Préparation requête').first().json.taille\n  }\n}];"
+      },
+      "id": "node-stop",
+      "name": "Aucun prospect",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1040, 140]
+    }
+  ],
+  "connections": {
+    "Formulaire Prospection": {
+      "main": [
+        [
+          {
+            "node": "Préparation requête",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparation requête": {
+      "main": [
+        [
+          {
+            "node": "Count prospects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Count prospects": {
+      "main": [
+        [
+          {
+            "node": "Résultats trouvés ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Résultats trouvés ?": {
+      "main": [
+        [
+          {
+            "node": "Calcul pagination",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aucun prospect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcul pagination": {
+      "main": [
+        [
+          {
+            "node": "Boucle pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Boucle pages": {
+      "main": [
+        [
+          {
+            "node": "Extraction page",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dédoublonner par SIRET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraction page": {
+      "main": [
+        [
+          {
+            "node": "Aplatir résultats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aplatir résultats": {
+      "main": [
+        [
+          {
+            "node": "Pause 500ms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause 500ms": {
+      "main": [
+        [
+          {
+            "node": "Boucle pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dédoublonner par SIRET": {
+      "main": [
+        [
+          {
+            "node": "Enrichissement activé ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrichissement activé ?": {
+      "main": [
+        [
+          {
+            "node": "Enrichissement (V14.1)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Créer Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrichissement (V14.1)": {
+      "main": [
+        [
+          {
+            "node": "Créer Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Créer Google Sheet": {
+      "main": [
+        [
+          {
+            "node": "Export Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Export Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Résumé exécution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "prospection",
+      "id": "tag-prospection"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": ""
+  }
+}

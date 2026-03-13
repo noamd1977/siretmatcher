@@ -84,12 +84,18 @@ async def search_prospects(req: SearchProspectsRequest, request: Request):
 
     pool = request.app.state.pool
 
-    # ---- COUNT ----
-    count_sql = f"""
-        SELECT COUNT(*) FROM etablissements e
-        {join_type} siret_opco o ON e.siret = o.siret
-        WHERE {where_clause}
-    """
+    # ---- COUNT (optimisé : skip JOIN si pas de filtre sur siret_opco) ----
+    if join_type == "LEFT JOIN":
+        # NAF: pas de filtre sur o.*, le JOIN est inutile pour le count
+        count_sql = f"SELECT COUNT(*) FROM etablissements e WHERE {where_clause}"
+        count_params = params
+    else:
+        count_sql = f"""
+            SELECT COUNT(*) FROM etablissements e
+            {join_type} siret_opco o ON e.siret = o.siret
+            WHERE {where_clause}
+        """
+        count_params = params
 
     # ---- DATA (avec pagination) ----
     limit_idx = len(params) + 1
@@ -114,10 +120,12 @@ async def search_prospects(req: SearchProspectsRequest, request: Request):
 
     async def _run_count():
         async with pool.acquire() as conn:
-            return await conn.fetchval(count_sql, *params)
+            await conn.execute("SET LOCAL jit = off")
+            return await conn.fetchval(count_sql, *count_params)
 
     async def _run_data():
         async with pool.acquire() as conn:
+            await conn.execute("SET LOCAL jit = off")
             return await conn.fetch(data_sql, *data_params)
 
     try:
@@ -170,14 +178,18 @@ async def search_prospects_count(req: SearchProspectsRequest, request: Request):
 
     pool = request.app.state.pool
 
-    count_sql = f"""
-        SELECT COUNT(*) FROM etablissements e
-        {join_type} siret_opco o ON e.siret = o.siret
-        WHERE {where_clause}
-    """
+    if join_type == "LEFT JOIN":
+        count_sql = f"SELECT COUNT(*) FROM etablissements e WHERE {where_clause}"
+    else:
+        count_sql = f"""
+            SELECT COUNT(*) FROM etablissements e
+            {join_type} siret_opco o ON e.siret = o.siret
+            WHERE {where_clause}
+        """
 
     try:
         async with pool.acquire() as conn:
+            await conn.execute("SET LOCAL jit = off")
             total = await conn.fetchval(count_sql, *params)
     except Exception as e:
         logger.error(f"Erreur SQL search/prospects/count: {e}")
