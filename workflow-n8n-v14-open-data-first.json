@@ -218,6 +218,16 @@
     },
     {
       "parameters": {
+        "jsCode": "// Collecte tous les items aplatis de toutes les itérations de la boucle\nconst allItems = $('Aplatir résultats').all();\nconsole.log(`Collecté ${allItems.length} prospects de toutes les pages`);\nreturn allItems;"
+      },
+      "id": "node-collect",
+      "name": "Collecter tous les prospects",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
         "operation": "removeDuplicateItems",
         "compare": "selectedFields",
         "fieldsToCompare": "siret",
@@ -227,7 +237,7 @@
       "name": "Dédoublonner par SIRET",
       "type": "n8n-nodes-base.removeDuplicates",
       "typeVersion": 1,
-      "position": [1560, 200]
+      "position": [1820, 200]
     },
     {
       "parameters": {
@@ -255,7 +265,7 @@
       "name": "Enrichissement activé ?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1820, 200]
+      "position": [2080, 200]
     },
     {
       "parameters": {
@@ -265,7 +275,7 @@
       "name": "Enrichissement (V14.1)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2080, 120],
+      "position": [2340, 120],
       "disabled": true
     },
     {
@@ -285,7 +295,7 @@
       "name": "Créer Google Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2080, 280],
+      "position": [2340, 280],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "",
@@ -333,7 +343,7 @@
       "name": "Export Google Sheets",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2340, 280],
+      "position": [2600, 280],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "",
@@ -349,7 +359,7 @@
       "name": "Résumé exécution",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2600, 280]
+      "position": [2860, 280]
     },
     {
       "parameters": {
@@ -436,7 +446,7 @@
         ],
         [
           {
-            "node": "Dédoublonner par SIRET",
+            "node": "Collecter tous les prospects",
             "type": "main",
             "index": 0
           }
@@ -470,6 +480,17 @@
         [
           {
             "node": "Boucle pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collecter tous les prospects": {
+      "main": [
+        [
+          {
+            "node": "Dédoublonner par SIRET",
             "type": "main",
             "index": 0
           }
