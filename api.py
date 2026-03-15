@@ -6,9 +6,12 @@ import re
 import sys
 import time
 
+from pathlib import Path
+
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from typing import Optional
 import uvicorn
@@ -32,6 +35,7 @@ from siret_matcher.metrics import (
     DB_POOL_SIZE, ETABLISSEMENTS_COUNT, CACHE_HITS, CACHE_MISSES,
 )
 from siret_matcher.search_router import router as search_router
+from siret_matcher.api_v3 import router as api_v3_router
 from siret_matcher.models import Prospect, SireneResult
 from siret_matcher.matcher import match_one, match_batch
 from siret_matcher.db import SireneDB
@@ -81,16 +85,31 @@ class TimingMiddleware(BaseHTTPMiddleware):
 
 
 limiter = Limiter(key_func=get_real_client_ip)
-app = FastAPI(title="SIRET Matcher API", version="2.0")
+app = FastAPI(
+    title="SIRET Matcher API",
+    version="3.0.0",
+    description="API d'enrichissement de prospects à partir des données SIRENE, France Compétences et BAN.",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_tags=[
+        {"name": "match", "description": "Matching intelligent de prospects"},
+        {"name": "search", "description": "Recherche avancée d'établissements"},
+        {"name": "referentiel", "description": "Données de référence (régions, IDCC, OPCO)"},
+        {"name": "dst", "description": "Endpoints DST Campus (legacy)"},
+        {"name": "system", "description": "Health, metrics"},
+        {"name": "v3", "description": "API v3 — endpoints structurés pour le frontend"},
+    ],
+)
 app.state.limiter = limiter
 app.include_router(search_router)
+app.include_router(api_v3_router)
 
 app.add_middleware(TimingMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["GET", "OPTIONS"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -203,12 +222,14 @@ async def startup():
     try:
         await db.connect()
         app.state.pool = db.pool
+        app.state.db = db
         stats = await db.get_stats()
         logger.info(f"Base Sirene connectee: {stats['active']:,} etablissements actifs")
         ETABLISSEMENTS_COUNT.set(stats["active"])
         DB_POOL_SIZE.set(db.pool.get_size())
     except Exception as e:
         logger.error(f"Erreur connexion DB: {e}")
+    app.state.http_client = http_client
     await siret_cache.connect()
 
 
@@ -446,6 +467,12 @@ async def dst_siret_lookup(request: Request, siret: str):
     )
 
     return result
+
+
+# Servir le frontend React (après tous les routes API)
+_static_dir = Path(__file__).parent / "static"
+if _static_dir.is_dir():
+    app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="static")
 
 
 if __name__ == "__main__":
