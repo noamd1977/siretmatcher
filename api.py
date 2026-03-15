@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field
 from typing import Optional
 import uvicorn
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 # Ajouter le projet au path
@@ -23,13 +22,22 @@ from siret_matcher.search_router import router as search_router
 from siret_matcher.models import Prospect, SireneResult
 from siret_matcher.matcher import match_one, match_batch
 from siret_matcher.db import SireneDB
-from siret_matcher.opco import NAF_TO_OPCO
-from siret_matcher.dst_lookups import DEPT_TO_REGION, NAF_LIBELLES
+from siret_matcher.lookups import NAF_TO_OPCO, DEPT_TO_REGION, NAF_LIBELLES
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s %(message)s")
 logger = logging.getLogger(__name__)
 
-limiter = Limiter(key_func=get_remote_address)
+
+def get_real_client_ip(request: Request) -> str:
+    """Extrait l'IP réelle du client depuis X-Forwarded-For (Traefik) ou le socket."""
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        # X-Forwarded-For: client, proxy1, proxy2 → on prend le client
+        return forwarded_for.split(",")[0].strip()
+    return request.client.host
+
+
+limiter = Limiter(key_func=get_real_client_ip)
 app = FastAPI(title="SIRET Matcher API", version="2.0")
 app.state.limiter = limiter
 app.include_router(search_router)

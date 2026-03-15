@@ -31,9 +31,9 @@ def _validate_siret(siret: str) -> bool:
     s = re.sub(r"[\s.]", "", siret)
     if not re.match(r"^\d{14}$", s):
         return False
-    # Algorithme de Luhn
+    # Algorithme de Luhn (de droite à gauche)
     total = 0
-    for i, c in enumerate(s):
+    for i, c in enumerate(reversed(s)):
         n = int(c)
         if i % 2 == 1:
             n *= 2
@@ -48,7 +48,7 @@ def _validate_siren(siren: str) -> bool:
     if not re.match(r"^\d{9}$", s):
         return False
     total = 0
-    for i, c in enumerate(s):
+    for i, c in enumerate(reversed(s)):
         n = int(c)
         if i % 2 == 1:
             n *= 2
