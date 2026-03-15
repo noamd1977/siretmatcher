@@ -67,7 +67,7 @@ def _check_result(prospect, result_data):
     return False, f"wrong SIRET: got {result_data.get('siret')} expected {expected['siret']}"
 
 
-async def test_pipeline_regression(api_client):
+async def test_pipeline_regression(api_client_with_key):
     """Test de non-régression du pipeline de matching."""
     reference = _load_reference()
 
@@ -86,7 +86,7 @@ async def test_pipeline_regression(api_client):
             "ville": inp.get("ville", ""),
         }
 
-        resp = await api_client.post("/match", json=payload)
+        resp = await api_client_with_key.post("/match", json=payload)
         assert resp.status_code == 200, f"{prospect['id']}: status {resp.status_code}"
         data = resp.json()
 

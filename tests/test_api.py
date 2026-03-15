@@ -11,10 +11,12 @@ async def test_health_status(api_client):
     resp = await api_client.get("/health")
     assert resp.status_code == 200
     data = resp.json()
-    assert "status" in data
+    assert data["status"] in ("ok", "degraded")
     assert "etablissements_actifs" in data
-    assert data["status"] == "ok"
     assert data["etablissements_actifs"] > 0
+    assert "db" in data
+    assert "redis" in data
+    assert "cache_size" in data
 
 
 # ── GET /api/dst/siret/{siret} ───────────────────────────────────────────────
@@ -53,9 +55,9 @@ async def test_siret_lookup_invalid_letters(api_client):
 # ── POST /match ──────────────────────────────────────────────────────────────
 
 
-async def test_match_positive(api_client):
+async def test_match_positive(api_client_with_key):
     payload = {"nom": "Google France", "code_postal": "75009", "ville": "Paris"}
-    resp = await api_client.post("/match", json=payload)
+    resp = await api_client_with_key.post("/match", json=payload)
     assert resp.status_code == 200
     data = resp.json()
     assert data["matched"] is True
@@ -63,21 +65,21 @@ async def test_match_positive(api_client):
     assert data["score"] > 0
 
 
-async def test_match_negative(api_client):
+async def test_match_negative(api_client_with_key):
     payload = {
         "nom": "XYZQWERTY INTROUVABLE SARL",
         "code_postal": "99999",
         "ville": "Nulle Part",
     }
-    resp = await api_client.post("/match", json=payload)
+    resp = await api_client_with_key.post("/match", json=payload)
     assert resp.status_code == 200
     data = resp.json()
     assert data["matched"] is False
 
 
-async def test_match_empty_name(api_client):
+async def test_match_empty_name(api_client_with_key):
     payload = {"nom": ""}
-    resp = await api_client.post("/match", json=payload)
+    resp = await api_client_with_key.post("/match", json=payload)
     # code_postal est requis par le modèle Pydantic → 422
     assert resp.status_code == 422
 
@@ -85,7 +87,7 @@ async def test_match_empty_name(api_client):
 # ── POST /match/batch ────────────────────────────────────────────────────────
 
 
-async def test_match_batch(api_client):
+async def test_match_batch(api_client_with_key):
     payload = {
         "prospects": [
             {"nom": "Google France", "code_postal": "75009", "ville": "Paris"},
@@ -93,7 +95,7 @@ async def test_match_batch(api_client):
             {"nom": "Total Energies", "code_postal": "92400", "ville": "Courbevoie"},
         ]
     }
-    resp = await api_client.post("/match/batch", json=payload)
+    resp = await api_client_with_key.post("/match/batch", json=payload)
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] == 3
