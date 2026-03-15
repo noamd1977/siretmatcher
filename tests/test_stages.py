@@ -18,9 +18,11 @@ from siret_matcher.normalizer import normalize_prospect
 from siret_matcher.stages.address_match import stage_address_match
 from siret_matcher.stages.api_recherche import stage_api_recherche
 from siret_matcher.stages.scraper import (
+    _extract_candidates_from_html,
     _extract_siret_from_html,
     _validate_siren,
     _validate_siret,
+    build_urls_to_crawl,
     stage_scrape_siret,
 )
 from siret_matcher.stages.trigram_match import stage_trigram_match
@@ -226,60 +228,169 @@ class TestTrigramMatch:
 
 # ---- Tests unitaires (pas de réseau) ----
 
+class TestScraperUrlBuilding:
+    """Tests de build_urls_to_crawl."""
+
+    pytestmark = []  # Override global asyncio/integration markers
+
+    def test_simple_domain(self):
+        """Domaine simple sans protocole."""
+        urls = build_urls_to_crawl("example.com")
+        assert any("https://example.com/mentions-legales" in u for u in urls)
+        assert any("https://example.com" == u for u in urls)  # Homepage (empty path)
+        assert any("https://www.example.com" in u for u in urls)
+
+    def test_with_https(self):
+        """URL avec protocole HTTPS."""
+        urls = build_urls_to_crawl("https://example.com")
+        assert any("https://example.com/mentions-legales" in u for u in urls)
+
+    def test_with_http(self):
+        """URL avec protocole HTTP → convertie en HTTPS."""
+        urls = build_urls_to_crawl("http://example.com")
+        assert any("https://example.com/mentions-legales" in u for u in urls)
+
+    def test_with_www(self):
+        """URL avec www → teste aussi sans www."""
+        urls = build_urls_to_crawl("www.example.com")
+        assert any("https://www.example.com/mentions-legales" in u for u in urls)
+        assert any("https://example.com/mentions-legales" in u for u in urls)
+
+    def test_with_path(self):
+        """URL avec un path existant → sous-pages ajoutées."""
+        urls = build_urls_to_crawl("https://example.com/fr")
+        assert any("/fr/mentions-legales" in u for u in urls)
+        assert any("https://example.com/mentions-legales" in u for u in urls)
+
+    def test_subdomain(self):
+        """Sous-domaine → teste aussi le domaine parent."""
+        urls = build_urls_to_crawl("shop.example.com")
+        assert any("https://shop.example.com/mentions-legales" in u for u in urls)
+        assert any("https://example.com/mentions-legales" in u for u in urls)
+
+    def test_trailing_slash(self):
+        """Trailing slash nettoyé."""
+        urls = build_urls_to_crawl("https://example.com/")
+        # Pas de double slash
+        assert not any("//" in u.replace("https://", "") for u in urls)
+
+    def test_empty_site(self):
+        """Site vide → liste vide."""
+        assert build_urls_to_crawl("") == []
+        assert build_urls_to_crawl("   ") == []
+
+    def test_all_pages_present(self):
+        """Toutes les pages de PAGES_TO_CRAWL sont représentées."""
+        urls = build_urls_to_crawl("example.com")
+        for page in ["/mentions-legales", "/cgu", "/cgv", "/contact", "/privacy"]:
+            assert any(page in u for u in urls), f"{page} manquant dans les URLs"
+
+
 class TestScraperUnit:
     """Tests unitaires du scraper : extraction regex + validation Luhn."""
 
-    # Pas de marker integration ni asyncio : ce sont des tests purement synchrones
     pytestmark = []
 
-    def test_extract_siret_from_html(self):
-        """Extraction d'un SIRET depuis du HTML mocké."""
-        html = """
-        <html><body>
-        <h1>Mentions Légales</h1>
-        <p>Société XYZ SARL au capital de 10 000 €</p>
-        <p>SIRET : 443 061 841 00047</p>
-        <p>RCS Paris B 443 061 841</p>
-        </body></html>
-        """
-        result = _extract_siret_from_html(html)
-        assert result is not None
-        assert re.sub(r"[\s.]", "", result) == "44306184100047"
+    # ── Extraction regex ─────────────────────────────────────────────────
 
-    def test_extract_siret_14_digits(self):
-        """Extraction d'un SIRET en 14 chiffres consécutifs."""
-        html = """
-        <html><body>
-        <footer>SIRET: 44306184100047 - TVA FR</footer>
-        </body></html>
-        """
+    def test_extract_siret_explicit(self):
+        """SIRET : 443 061 841 00047 → 44306184100047."""
+        html = "<html><body><p>SIRET : 443 061 841 00047</p></body></html>"
         result = _extract_siret_from_html(html)
         assert result == "44306184100047"
 
-    def test_extract_siren_from_html(self):
-        """Extraction d'un SIREN (9 chiffres) quand pas de SIRET complet."""
-        html = """
-        <html><body>
-        <p>SIREN : 443 061 841</p>
-        </body></html>
-        """
+    def test_extract_siret_with_semicolon(self):
+        """Numéro SIRET; 44306184100047."""
+        html = "<html><body><p>Numéro SIRET; 44306184100047</p></body></html>"
         result = _extract_siret_from_html(html)
-        assert result is not None
-        assert re.sub(r"[\s.]", "", result) == "443061841"
+        assert result == "44306184100047"
+
+    def test_extract_siret_with_dashes(self):
+        """SIRET avec tirets : 443-061-841-00047."""
+        html = "<html><body><p>SIRET: 443-061-841-00047</p></body></html>"
+        result = _extract_siret_from_html(html)
+        assert result == "44306184100047"
+
+    def test_extract_siret_14_consecutive_digits(self):
+        """SIRET en 14 chiffres consécutifs (dernier recours)."""
+        html = "<html><body><footer>44306184100047</footer></body></html>"
+        result = _extract_siret_from_html(html)
+        assert result == "44306184100047"
+
+    def test_extract_rcs_siren(self):
+        """RCS Paris 443 061 841 → SIREN 443061841."""
+        html = "<html><body><p>RCS Paris 443 061 841</p></body></html>"
+        result = _extract_siret_from_html(html)
+        assert result == "443061841"
+
+    def test_extract_tva_siren(self):
+        """N° TVA : FR 27 443061841 → SIREN 443061841."""
+        html = "<html><body><p>TVA : FR 27 443061841</p></body></html>"
+        result = _extract_siret_from_html(html)
+        assert result == "443061841"
+
+    def test_extract_siren_explicit(self):
+        """SIREN : 443 061 841 → 443061841."""
+        html = "<html><body><p>SIREN : 443 061 841</p></body></html>"
+        result = _extract_siret_from_html(html)
+        assert result == "443061841"
 
     def test_no_siret_in_html(self):
         """Pas de SIRET dans le HTML → None."""
-        html = """
-        <html><body>
-        <p>Bienvenue sur notre site web. Aucun numéro légal ici.</p>
-        </body></html>
-        """
+        html = "<html><body><p>Bienvenue sur notre site web.</p></body></html>"
         result = _extract_siret_from_html(html)
         assert result is None
 
+    def test_extract_candidates_multiple(self):
+        """Plusieurs numéros sur la même page."""
+        html = """
+        <html><body>
+        <p>SIRET : 443 061 841 00047</p>
+        <p>SIREN : 443 061 841</p>
+        <p>RCS Paris 443 061 841</p>
+        </body></html>
+        """
+        candidates = _extract_candidates_from_html(html)
+        values = [c["value"] for c in candidates]
+        assert "44306184100047" in values
+        assert "443061841" in values
+
+    def test_extract_from_realistic_html(self):
+        """HTML réaliste de mentions légales."""
+        html = """
+        <html>
+        <head><title>Mentions Légales - Ma Société</title></head>
+        <body>
+        <div class="content">
+            <h1>Mentions légales</h1>
+            <h2>Éditeur du site</h2>
+            <p>MA SOCIETE SAS au capital de 50 000 euros</p>
+            <p>Siège social : 15 rue de la Paix, 75002 Paris</p>
+            <p>Immatriculée au RCS de Paris sous le numéro 443 061 841</p>
+            <p>SIRET : 443 061 841 00047</p>
+            <p>N° TVA intracommunautaire : FR 27 443061841</p>
+            <p>Directeur de la publication : M. Dupont</p>
+            <h2>Hébergeur</h2>
+            <p>OVH SAS - 2 rue Kellermann 59100 Roubaix</p>
+            <p>SIRET : 42476141900045</p>
+        </div>
+        </body></html>
+        """
+        candidates = _extract_candidates_from_html(html)
+        siret_values = [c["value"] for c in candidates if c["type"] == "siret"]
+        assert "44306184100047" in siret_values
+        # L'hébergeur aussi devrait être trouvé
+        assert len(siret_values) >= 2
+
+    def test_extract_empty_html(self):
+        """Page vide."""
+        assert _extract_siret_from_html("") is None
+        assert _extract_siret_from_html("<html><body></body></html>") is None
+
+    # ── Validation Luhn ──────────────────────────────────────────────────
+
     def test_validate_siret_valid(self):
-        """Un SIRET valide doit passer la validation Luhn."""
-        # 443 061 841 00047 est le SIRET de Google France
+        """Un SIRET valide passe Luhn."""
         assert _validate_siret("44306184100047") is True
 
     def test_validate_siret_invalid(self):
@@ -287,17 +398,29 @@ class TestScraperUnit:
         assert _validate_siret("44306184100048") is False
 
     def test_validate_siret_bad_length(self):
-        """Un numéro qui n'a pas 14 chiffres est invalide."""
+        """Longueur incorrecte → invalide."""
         assert _validate_siret("4430618410004") is False
         assert _validate_siret("443061841000471") is False
 
+    def test_validate_siret_with_spaces(self):
+        """SIRET avec espaces → valide après nettoyage."""
+        assert _validate_siret("443 061 841 00047") is True
+
+    def test_validate_siret_with_dashes(self):
+        """SIRET avec tirets → valide après nettoyage."""
+        assert _validate_siret("443-061-841-00047") is True
+
     def test_validate_siren_valid(self):
-        """Un SIREN valide (9 chiffres, Luhn OK)."""
+        """SIREN valide (9 chiffres, Luhn OK)."""
         assert _validate_siren("443061841") is True
 
     def test_validate_siren_invalid(self):
-        """Un SIREN invalide."""
+        """SIREN invalide."""
         assert _validate_siren("443061842") is False
+
+    def test_validate_siren_with_spaces(self):
+        """SIREN avec espaces → valide après nettoyage."""
+        assert _validate_siren("443 061 841") is True
 
 
 # ---- Tests d'intégration scraper (avec mock HTTP) ----
@@ -309,7 +432,6 @@ class TestScraperIntegration:
 
     async def test_scrape_mentions_legales_mocked(self, sirene_db):
         """Scraping d'un site mocké avec un SIRET dans les mentions légales."""
-        # HTML de test avec un SIRET valide (Google France)
         mock_html = """
         <html><head><title>Mentions Légales</title></head>
         <body>
@@ -320,7 +442,6 @@ class TestScraperIntegration:
         </body></html>
         """
 
-        # Créer un transport mock qui retourne notre HTML
         class MockTransport(httpx.AsyncBaseTransport):
             async def handle_async_request(self, request):
                 if "/mentions-legales" in str(request.url):
@@ -381,6 +502,131 @@ class TestScraperIntegration:
             result = await stage_scrape_siret(client, sirene_db, prospect)
 
         assert result is None
+
+    async def test_scrape_non_html_skipped(self, sirene_db):
+        """Pages non-HTML (PDF, images) sont ignorées."""
+
+        class PdfMockTransport(httpx.AsyncBaseTransport):
+            async def handle_async_request(self, request):
+                return httpx.Response(
+                    200,
+                    content=b"%PDF-1.4 fake pdf content",
+                    headers={"content-type": "application/pdf"},
+                )
+
+        async with httpx.AsyncClient(transport=PdfMockTransport()) as client:
+            prospect = _make_prospect(
+                nom="TEST CORP",
+                adresse="1 Rue Test",
+                code_postal="75001",
+                ville="Paris",
+                site_web="https://example.com",
+            )
+            result = await stage_scrape_siret(client, sirene_db, prospect)
+
+        assert result is None
+
+    async def test_scrape_large_page_truncated(self, sirene_db):
+        """Page énorme → tronquée à MAX_RESPONSE_SIZE, pas de crash."""
+        # Créer une page avec beaucoup de contenu + SIRET à la fin (au-delà de la limite)
+        padding = "x" * 600_000
+        mock_html = f"<html><body>{padding}<p>SIRET: 44306184100047</p></body></html>"
+
+        class LargeMockTransport(httpx.AsyncBaseTransport):
+            async def handle_async_request(self, request):
+                if "/mentions-legales" in str(request.url):
+                    return httpx.Response(
+                        200,
+                        content=mock_html.encode(),
+                        headers={"content-type": "text/html; charset=utf-8"},
+                    )
+                return httpx.Response(404)
+
+        async with httpx.AsyncClient(transport=LargeMockTransport()) as client:
+            prospect = _make_prospect(
+                nom="TEST CORP",
+                adresse="1 Rue Test",
+                code_postal="75001",
+                ville="Paris",
+                site_web="https://example.com",
+            )
+            # Ne doit pas crasher, le SIRET est tronqué donc pas trouvé
+            result = await stage_scrape_siret(client, sirene_db, prospect)
+            # Le SIRET est au-delà de 500KB, donc tronqué
+            # Le résultat devrait être None (pas de crash)
+            assert result is None
+
+    async def test_scrape_multiple_sirets_best_selected(self, sirene_db):
+        """Plusieurs SIRET sur le site → le meilleur est sélectionné par scoring."""
+        mock_html = """
+        <html><body>
+        <h1>Mentions légales</h1>
+        <p>Notre société : GOOGLE FRANCE</p>
+        <p>SIRET : 443 061 841 00047</p>
+        <p>Hébergeur : OVH SAS</p>
+        <p>SIRET hébergeur : 424 761 419 00045</p>
+        </body></html>
+        """
+
+        class MockTransport(httpx.AsyncBaseTransport):
+            async def handle_async_request(self, request):
+                if "/mentions-legales" in str(request.url):
+                    return httpx.Response(
+                        200,
+                        content=mock_html.encode(),
+                        headers={"content-type": "text/html; charset=utf-8"},
+                    )
+                return httpx.Response(404)
+
+        async with httpx.AsyncClient(transport=MockTransport()) as client:
+            prospect = _make_prospect(
+                nom="GOOGLE FRANCE",
+                adresse="8 Rue de Londres",
+                code_postal="75009",
+                ville="Paris",
+                site_web="https://example.com",
+            )
+            result = await stage_scrape_siret(client, sirene_db, prospect)
+
+        # Le scoring doit privilégier Google France (match nom + CP)
+        assert result is not None
+        assert result.siret == "44306184100047"
+
+    async def test_scrape_homepage_fallback(self, sirene_db):
+        """SIRET trouvé sur la homepage quand les pages légales sont 404."""
+        mock_html = """
+        <html><body>
+        <footer>
+        <p>© 2024 Google France - SIRET: 44306184100047</p>
+        </footer>
+        </body></html>
+        """
+
+        class MockTransport(httpx.AsyncBaseTransport):
+            async def handle_async_request(self, request):
+                url = str(request.url)
+                # Seule la homepage (pas de path) retourne du contenu
+                path = url.replace("https://example.com", "").replace("https://www.example.com", "")
+                if path == "" or path == "/":
+                    return httpx.Response(
+                        200,
+                        content=mock_html.encode(),
+                        headers={"content-type": "text/html; charset=utf-8"},
+                    )
+                return httpx.Response(404)
+
+        async with httpx.AsyncClient(transport=MockTransport()) as client:
+            prospect = _make_prospect(
+                nom="GOOGLE FRANCE",
+                adresse="8 Rue de Londres",
+                code_postal="75009",
+                ville="Paris",
+                site_web="https://example.com",
+            )
+            result = await stage_scrape_siret(client, sirene_db, prospect)
+
+        assert result is not None
+        assert result.siret == "44306184100047"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
