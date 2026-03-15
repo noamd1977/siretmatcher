@@ -11,3 +11,4 @@ tqdm>=4.66
 click>=8.1
 prometheus-client>=0.20
 redis>=5.0
+dnspython>=2.6
