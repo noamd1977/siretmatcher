@@ -1,0 +1,1032 @@
+[
+  {
+    "id": "REF-001",
+    "difficulty": "easy",
+    "input": {
+      "nom": "ALLIANCE GV",
+      "adresse": "15 RUE M FRANCHET D'ESPEREY",
+      "code_postal": "54000",
+      "ville": "NANCY"
+    },
+    "expected": {
+      "siret": "50015584100025",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-002",
+    "difficulty": "easy",
+    "input": {
+      "nom": "AROMA & CO",
+      "adresse": "448 CROIX RIVAIL",
+      "code_postal": "97232",
+      "ville": "LE LAMENTIN"
+    },
+    "expected": {
+      "siret": "83884476900011",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-003",
+    "difficulty": "easy",
+    "input": {
+      "nom": "OCCITANIA INVEST",
+      "adresse": "82 AVENUE DU LAURAGAIS",
+      "code_postal": "31400",
+      "ville": "TOULOUSE"
+    },
+    "expected": {
+      "siret": "48897090600027",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-004",
+    "difficulty": "easy",
+    "input": {
+      "nom": "A.P.E.L. DE L'ECOLE PRIVE MIXTE DE LA JUMELLIERE",
+      "adresse": "1 RUE DE L'ECOLE DE LA TOUR",
+      "code_postal": "49120",
+      "ville": "CHEMILLE-EN-ANJOU"
+    },
+    "expected": {
+      "siret": "80114626700019",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-005",
+    "difficulty": "easy",
+    "input": {
+      "nom": "LA TAJINE D OR",
+      "adresse": "59 QUAI DE LA MARNE",
+      "code_postal": "94340",
+      "ville": "JOINVILLE-LE-PONT"
+    },
+    "expected": {
+      "siret": "52947147600018",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-006",
+    "difficulty": "easy",
+    "input": {
+      "nom": "DO SWAN",
+      "adresse": "9 RUE MATHELIN RODIER",
+      "code_postal": "44000",
+      "ville": "NANTES"
+    },
+    "expected": {
+      "siret": "81477218200014",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-007",
+    "difficulty": "easy",
+    "input": {
+      "nom": "B CONNECT",
+      "adresse": "213 BOULEVARD PASTEUR",
+      "code_postal": "93320",
+      "ville": "LES PAVILLONS-SOUS-BOIS"
+    },
+    "expected": {
+      "siret": "78980247700032",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-008",
+    "difficulty": "easy",
+    "input": {
+      "nom": "DES PITCHOUNS",
+      "adresse": "439 AVENUE DE PESSICART",
+      "code_postal": "06100",
+      "ville": "NICE"
+    },
+    "expected": {
+      "siret": "53832976400020",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-009",
+    "difficulty": "easy",
+    "input": {
+      "nom": "REGARDS SUR L'ART CONTEMPORAIN EN ALSACE",
+      "adresse": "9 AVENUE JEAN JAURES",
+      "code_postal": "67100",
+      "ville": "STRASBOURG"
+    },
+    "expected": {
+      "siret": "81240669200010",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-010",
+    "difficulty": "easy",
+    "input": {
+      "nom": "SCI 49 R VIEILLE DU TEMPLE",
+      "adresse": "1 RUE DES BLANCS MANTEAUX",
+      "code_postal": "75004",
+      "ville": "PARIS"
+    },
+    "expected": {
+      "siret": "31576826700017",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-011",
+    "difficulty": "easy",
+    "input": {
+      "nom": "AUTOMACTION",
+      "adresse": "8 LOT ER KLOZE",
+      "code_postal": "56450",
+      "ville": "SURZUR"
+    },
+    "expected": {
+      "siret": "88387570000014",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-012",
+    "difficulty": "easy",
+    "input": {
+      "nom": "PROMOVALEURS",
+      "adresse": "81 AVENUE MARCEAU",
+      "code_postal": "75016",
+      "ville": "PARIS"
+    },
+    "expected": {
+      "siret": "40169263700028",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-013",
+    "difficulty": "easy",
+    "input": {
+      "nom": "LA MAISON BLANCHE",
+      "adresse": "6 IMPASSE CHANTE BRIQUET",
+      "code_postal": "38560",
+      "ville": "CHAMP-SUR-DRAC"
+    },
+    "expected": {
+      "siret": "85331778200011",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-014",
+    "difficulty": "easy",
+    "input": {
+      "nom": "SCI TBLJ",
+      "adresse": "2 RUE MARIUS AMELINE",
+      "code_postal": "18500",
+      "ville": "MEHUN-SUR-YEVRE"
+    },
+    "expected": {
+      "siret": "53230015900011",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-015",
+    "difficulty": "easy",
+    "input": {
+      "nom": "EARL TERRE FORTE",
+      "adresse": "3 IMPASSE DE TERRE FORTE",
+      "code_postal": "79290",
+      "ville": "SAINT-MARTIN-DE-SANZAY"
+    },
+    "expected": {
+      "siret": "94527960200011",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-016",
+    "difficulty": "easy",
+    "input": {
+      "nom": "PETRICHOR",
+      "adresse": "36 AVENUE LENINE",
+      "code_postal": "93230",
+      "ville": "ROMAINVILLE"
+    },
+    "expected": {
+      "siret": "93483778200010",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-017",
+    "difficulty": "easy",
+    "input": {
+      "nom": "CONVENTIONS VILLES PR CONSEILS JEUNES",
+      "adresse": "9 RUE DE L'ARC DE TRIOMPHE",
+      "code_postal": "75017",
+      "ville": "PARIS"
+    },
+    "expected": {
+      "siret": "34529911900023",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-018",
+    "difficulty": "easy",
+    "input": {
+      "nom": "SAS DGLC BREST",
+      "adresse": "60 RUE VICTOR EUSEN",
+      "code_postal": "29200",
+      "ville": "BREST"
+    },
+    "expected": {
+      "siret": "90900801300015",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-019",
+    "difficulty": "easy",
+    "input": {
+      "nom": "GRAND GARAGE UNIVERSEL",
+      "adresse": "85 AVENUE DU TROIS SEPTEMBRE",
+      "code_postal": "06320",
+      "ville": "CAP-D'AIL"
+    },
+    "expected": {
+      "siret": "95780939500016",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-020",
+    "difficulty": "easy",
+    "input": {
+      "nom": "COPR 8 RUE DE PASSY",
+      "adresse": "8 RUE DE PASSY",
+      "code_postal": "75016",
+      "ville": "PARIS"
+    },
+    "expected": {
+      "siret": "03900137500011",
+      "should_match": true,
+      "min_score": 60,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI",
+        "DB_TRIGRAM"
+      ]
+    }
+  },
+  {
+    "id": "REF-021",
+    "difficulty": "medium",
+    "input": {
+      "nom": "DANALOGS",
+      "adresse": "",
+      "code_postal": "75020",
+      "ville": ""
+    },
+    "expected": {
+      "siret": "99320283700015",
+      "should_match": true,
+      "min_score": 40,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-022",
+    "difficulty": "medium",
+    "input": {
+      "nom": "Compagnie Les Lustres Theatre",
+      "adresse": "",
+      "code_postal": "75012",
+      "ville": ""
+    },
+    "expected": {
+      "siret": "38981806300031",
+      "should_match": true,
+      "min_score": 40,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-023",
+    "difficulty": "medium",
+    "input": {
+      "nom": "ETS ALIZEE",
+      "adresse": "",
+      "code_postal": "57365",
+      "ville": ""
+    },
+    "expected": {
+      "siret": "53958325200025",
+      "should_match": true,
+      "min_score": 40,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-024",
+    "difficulty": "medium",
+    "input": {
+      "nom": "Sarl Financiere Skd",
+      "adresse": "",
+      "code_postal": "53000",
+      "ville": ""
+    },
+    "expected": {
+      "siret": "41984563100045",
+      "should_match": true,
+      "min_score": 40,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-025",
+    "difficulty": "medium",
+    "input": {
+      "nom": "LA GRISETTE SAS",
+      "adresse": "",
+      "code_postal": "21200",
+      "ville": ""
+    },
+    "expected": {
+      "siret": "49112596900015",
+      "should_match": true,
+      "min_score": 40,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-026",
+    "difficulty": "medium",
+    "input": {
+      "nom": "ETS OPTIM ASSUR",
+      "adresse": "",
+      "code_postal": "59650",
+      "ville": ""
+    },
+    "expected": {
+      "siret": "80494038500011",
+      "should_match": true,
+      "min_score": 40,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-027",
+    "difficulty": "medium",
+    "input": {
+      "nom": "SARL COMMUNE DE BOISME",
+      "adresse": "",
+      "code_postal": "79300",
+      "ville": ""
+    },
+    "expected": {
+      "siret": "21790038000049",
+      "should_match": true,
+      "min_score": 40,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-028",
+    "difficulty": "medium",
+    "input": {
+      "nom": "SARL SYNDIC COPROPRIETE IMM 46 R MAISON PAJOT",
+      "adresse": "",
+      "code_postal": "44100",
+      "ville": ""
+    },
+    "expected": {
+      "siret": "38941542300018",
+      "should_match": true,
+      "min_score": 40,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-029",
+    "difficulty": "medium",
+    "input": {
+      "nom": "TEAM RANDO QUADS 34",
+      "adresse": "",
+      "code_postal": "34400",
+      "ville": ""
+    },
+    "expected": {
+      "siret": "44878265600012",
+      "should_match": true,
+      "min_score": 40,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-030",
+    "difficulty": "medium",
+    "input": {
+      "nom": "DELSI SAS",
+      "adresse": "",
+      "code_postal": "33370",
+      "ville": ""
+    },
+    "expected": {
+      "siret": "51756638600036",
+      "should_match": true,
+      "min_score": 40,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-031",
+    "difficulty": "medium",
+    "input": {
+      "nom": "ETS SCI LUMIERE",
+      "adresse": "",
+      "code_postal": "78200",
+      "ville": ""
+    },
+    "expected": {
+      "siret": "52119309400013",
+      "should_match": true,
+      "min_score": 40,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-032",
+    "difficulty": "medium",
+    "input": {
+      "nom": "SARL COMMUNE DE SAINT DIDIER DE LA TOUR",
+      "adresse": "",
+      "code_postal": "38110",
+      "ville": ""
+    },
+    "expected": {
+      "siret": "21380381000018",
+      "should_match": true,
+      "min_score": 40,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-033",
+    "difficulty": "medium",
+    "input": {
+      "nom": "TEKFAOUI SAS",
+      "adresse": "",
+      "code_postal": "49100",
+      "ville": ""
+    },
+    "expected": {
+      "siret": "98483421800013",
+      "should_match": true,
+      "min_score": 40,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-034",
+    "difficulty": "medium",
+    "input": {
+      "nom": "SARL SCI AMCG",
+      "adresse": "",
+      "code_postal": "83160",
+      "ville": ""
+    },
+    "expected": {
+      "siret": "48797838900020",
+      "should_match": true,
+      "min_score": 40,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-035",
+    "difficulty": "medium",
+    "input": {
+      "nom": "LES-OUBLIES-DE-L'HISTOIRE",
+      "adresse": "",
+      "code_postal": "67150",
+      "ville": ""
+    },
+    "expected": {
+      "siret": "49342993000016",
+      "should_match": true,
+      "min_score": 40,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-036",
+    "difficulty": "hard",
+    "input": {
+      "nom": "ANCIEN DOMINANTES",
+      "adresse": "",
+      "code_postal": "75014",
+      "ville": "PARIS"
+    },
+    "expected": {
+      "siret": "39776569400039",
+      "should_match": true,
+      "min_score": 20,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-037",
+    "difficulty": "hard",
+    "input": {
+      "nom": "CMC SAS ET FILS",
+      "adresse": "",
+      "code_postal": "34980",
+      "ville": "COMBAILLAUX"
+    },
+    "expected": {
+      "siret": "90412845100013",
+      "should_match": true,
+      "min_score": 20,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-038",
+    "difficulty": "hard",
+    "input": {
+      "nom": "ANCIEN THEIA IMPACT",
+      "adresse": "",
+      "code_postal": "75017",
+      "ville": "PARIS"
+    },
+    "expected": {
+      "siret": "84448833800014",
+      "should_match": true,
+      "min_score": 20,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-039",
+    "difficulty": "hard",
+    "input": {
+      "nom": "BRODERIE UROMA",
+      "adresse": "",
+      "code_postal": "13740",
+      "ville": "LE ROVE"
+    },
+    "expected": {
+      "siret": "82137959100018",
+      "should_match": true,
+      "min_score": 20,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-040",
+    "difficulty": "hard",
+    "input": {
+      "nom": "ANCIEN ENAM RENOVATION",
+      "adresse": "",
+      "code_postal": "78800",
+      "ville": "HOUILLES"
+    },
+    "expected": {
+      "siret": "75203508900016",
+      "should_match": true,
+      "min_score": 20,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-041",
+    "difficulty": "hard",
+    "input": {
+      "nom": "ANCIEN THOMAS SARL",
+      "adresse": "",
+      "code_postal": "85500",
+      "ville": "BEAUREPAIRE"
+    },
+    "expected": {
+      "siret": "48896360400019",
+      "should_match": true,
+      "min_score": 20,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-042",
+    "difficulty": "hard",
+    "input": {
+      "nom": "SOCIETE COMPLICE'S",
+      "adresse": "",
+      "code_postal": "95470",
+      "ville": "FOSSES"
+    },
+    "expected": {
+      "siret": "41402958700014",
+      "should_match": true,
+      "min_score": 20,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-043",
+    "difficulty": "hard",
+    "input": {
+      "nom": "ANCIEN COMMUNE DE REUGNY",
+      "adresse": "",
+      "code_postal": "37380",
+      "ville": "REUGNY"
+    },
+    "expected": {
+      "siret": "21370244200012",
+      "should_match": true,
+      "min_score": 20,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-044",
+    "difficulty": "hard",
+    "input": {
+      "nom": "Y.M. CHAMBERY",
+      "adresse": "",
+      "code_postal": "73000",
+      "ville": "CHAMBERY"
+    },
+    "expected": {
+      "siret": "79241278500018",
+      "should_match": true,
+      "min_score": 20,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-045",
+    "difficulty": "hard",
+    "input": {
+      "nom": "SAS VINGT ET UNE IDEES AU GRAMME",
+      "adresse": "",
+      "code_postal": "31410",
+      "ville": "LONGAGES"
+    },
+    "expected": {
+      "siret": "84320652500019",
+      "should_match": true,
+      "min_score": 20,
+      "acceptable_methods": [
+        "API_RECHERCHE_EXACT",
+        "API_RECHERCHE_FUZZY",
+        "DB_TRIGRAM",
+        "ADDRESS_UNIQUE",
+        "ADDRESS_MULTI"
+      ]
+    }
+  },
+  {
+    "id": "REF-046",
+    "difficulty": "impossible",
+    "input": {
+      "nom": "XYZQWERTY BLORPFNAK SARL",
+      "code_postal": "99999",
+      "ville": "Ville Fictive"
+    },
+    "expected": {
+      "should_match": false
+    }
+  },
+  {
+    "id": "REF-047",
+    "difficulty": "impossible",
+    "input": {
+      "nom": "ABRACADABRA ZOLPIKNET IMAGINAIRE",
+      "code_postal": "00000",
+      "ville": "Nulle Part"
+    },
+    "expected": {
+      "should_match": false
+    }
+  },
+  {
+    "id": "REF-048",
+    "difficulty": "impossible",
+    "input": {
+      "nom": "ZZZFANTOME QRPLKJHG",
+      "code_postal": "99998",
+      "ville": "Introuvable City"
+    },
+    "expected": {
+      "should_match": false
+    }
+  },
+  {
+    "id": "REF-049",
+    "difficulty": "impossible",
+    "input": {
+      "nom": "QWASZX PLMKJNB FICTIF",
+      "code_postal": "99997",
+      "ville": "Bidonville"
+    },
+    "expected": {
+      "should_match": false
+    }
+  },
+  {
+    "id": "REF-050",
+    "difficulty": "impossible",
+    "input": {
+      "nom": "YKWTRPZN VBNMQSD JKLHGF",
+      "code_postal": "99996",
+      "ville": "Nowhere Land"
+    },
+    "expected": {
+      "should_match": false
+    }
+  }
+]
