@@ -48,6 +48,10 @@ REGION_DEPARTEMENTS = {
 
 class SearchProspectsRequest(BaseModel):
     """Requête de recherche de prospects."""
+    q: Optional[str] = Field(
+        default=None,
+        description="Recherche full-text (ex: 'boulangerie', 'google france')"
+    )
     departements: list[str] = Field(
         ...,
         description="Liste de codes départements (ex: ['75','92','93','94'])",
@@ -99,3 +103,12 @@ class SearchProspectsResponse(BaseModel):
     limit: int
     offset: int
     results: list[ProspectResult]
+
+
+class AutocompleteResult(BaseModel):
+    """Résultat allégé pour l'autocomplétion."""
+    siret: str
+    denomination: Optional[str] = None
+    commune: Optional[str] = None
+    code_postal: Optional[str] = None
+    naf: Optional[str] = None
