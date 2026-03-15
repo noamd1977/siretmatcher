@@ -67,3 +67,12 @@ class SireneResult:
     source_opco: str = ""
     idcc: str = ""
     convention_collective: str = ""
+    # Données entreprise (enrichies depuis API Recherche Entreprises)
+    dirigeant_nom: str = ""
+    dirigeant_prenom: str = ""
+    dirigeant_fonction: str = ""
+    categorie_entreprise: str = ""       # PME, ETI, GE
+    nature_juridique: str = ""           # code (ex: 5499)
+    nature_juridique_libelle: str = ""   # libellé (ex: SAS)
+    nombre_etablissements: int = 0
+    effectif_unite_legale: str = ""      # tranche effectif de l'unité légale

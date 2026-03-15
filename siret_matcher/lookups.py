@@ -21,6 +21,7 @@ _REGISTRY: dict[str, str] = {
     "NAF_TO_OPCO": "naf_to_opco",
     "ENSEIGNE_TO_OPCO": "enseigne_to_opco",
     "TRANCHE_MAP": "tranche_map",
+    "NATURE_JURIDIQUE": "nature_juridique",
 }
 
 
@@ -49,5 +50,6 @@ NAF_LIBELLES: dict[str, str] = {}
 NAF_TO_OPCO: dict[str, str] = {}
 ENSEIGNE_TO_OPCO: dict[str, str] = {}
 TRANCHE_MAP: dict[str, str] = {}
+NATURE_JURIDIQUE: dict[str, str] = {}
 
 reload_lookups()

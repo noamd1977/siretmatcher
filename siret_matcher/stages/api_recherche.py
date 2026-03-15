@@ -97,10 +97,23 @@ def _build_result(prospect: Prospect, api_result: dict, best_etab: dict, score: 
     """Construire un SireneResult depuis un résultat API."""
     siege = api_result.get("siege", {})
     dirigeants = api_result.get("dirigeants") or []
+
+    # Dirigeant : première personne physique
     dirigeant = ""
-    if dirigeants:
+    dir_nom, dir_prenom, dir_fonction = "", "", ""
+    for d in dirigeants:
+        if d.get("type_dirigeant") == "personne physique":
+            dir_nom = d.get("nom", "")
+            dir_prenom = d.get("prenoms", "")
+            dir_fonction = d.get("qualite", "")
+            dirigeant = f"{dir_prenom} {dir_nom}".strip()
+            break
+    if not dirigeant and dirigeants:
         d = dirigeants[0]
-        dirigeant = f"{d.get('prenoms', '')} {d.get('nom', '')}".strip()
+        dirigeant = d.get("denomination") or f"{d.get('prenoms', '')} {d.get('nom', '')}".strip()
+        dir_nom = d.get("nom", "")
+        dir_prenom = d.get("prenoms", "")
+        dir_fonction = d.get("qualite", "")
 
     siret = best_etab.get("siret") or siege.get("siret", "")
     naf = best_etab.get("activite_principale") or siege.get("activite_principale", "")
@@ -125,6 +138,14 @@ def _build_result(prospect: Prospect, api_result: dict, best_etab: dict, score: 
         methode=methode,
         opco=opco,
         source_opco=source_opco,
+        # Nouvelles données entreprise
+        dirigeant_nom=dir_nom,
+        dirigeant_prenom=dir_prenom,
+        dirigeant_fonction=dir_fonction,
+        categorie_entreprise=api_result.get("categorie_entreprise") or "",
+        nature_juridique=api_result.get("nature_juridique") or "",
+        nombre_etablissements=api_result.get("nombre_etablissements_ouverts") or 0,
+        effectif_unite_legale=api_result.get("tranche_effectif_salarie") or "",
     )
 
 

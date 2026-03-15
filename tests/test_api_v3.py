@@ -35,6 +35,15 @@ class TestEtablissement:
         assert "nom" in data["opco"]
         assert "code" in data["idcc"]
         assert "libelle" in data["idcc"]
+        # Nouveaux champs dirigeant + entreprise
+        assert "dirigeant" in data
+        assert "nom" in data["dirigeant"]
+        assert "prenom" in data["dirigeant"]
+        assert "fonction" in data["dirigeant"]
+        assert "entreprise" in data
+        assert "categorie" in data["entreprise"]
+        assert "nature_juridique" in data["entreprise"]
+        assert "nombre_etablissements" in data["entreprise"]
 
     async def test_etablissement_not_found(self, api_client):
         """SIRET inexistant → 404."""
@@ -50,6 +59,51 @@ class TestEtablissement:
         """L'endpoint est public (pas de X-API-Key)."""
         resp = await api_client.get("/api/v3/etablissements/44306184100047")
         assert resp.status_code == 200
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GET /api/v3/etablissements/{siret}/enrich
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestEnrichment:
+    """Enrichissement externe d'un établissement."""
+
+    @pytest.mark.slow
+    async def test_enrich_structure(self, api_client):
+        """L'endpoint /enrich retourne la structure attendue."""
+        resp = await api_client.get("/api/v3/etablissements/44306184100047/enrich")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["siret"] == "44306184100047"
+        assert "dirigeant" in data
+        assert "nom" in data["dirigeant"]
+        assert "financier" in data
+        assert "chiffre_affaires" in data["financier"]
+        assert "entreprise" in data
+        assert "enriched_at" in data
+        assert isinstance(data["sources"], list)
+
+    @pytest.mark.slow
+    async def test_enrich_api_data(self, api_client):
+        """L'API retourne dirigeant/catégorie pour Google France."""
+        resp = await api_client.get("/api/v3/etablissements/44306184100047/enrich")
+        data = resp.json()
+        if "api_recherche_entreprises" in data["sources"]:
+            assert data["dirigeant"]["nom"]
+            assert data["entreprise"]["categorie"] in ("PME", "ETI", "GE")
+
+    async def test_enrich_invalid_siret(self, api_client):
+        """Format invalide → 400."""
+        resp = await api_client.get("/api/v3/etablissements/abc/enrich")
+        assert resp.status_code == 400
+
+    async def test_enrich_unknown_graceful(self, api_client):
+        """SIRET inconnu → retourne structure vide, pas d'erreur."""
+        resp = await api_client.get("/api/v3/etablissements/99999999999999/enrich")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["siret"] == "99999999999999"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -81,8 +135,22 @@ class TestMatchV3:
         assert "naf" in etab
         assert "code" in etab["naf"]
         assert "adresse" in etab
+        # Dirigeant + entreprise enrichis depuis le matching
+        assert "dirigeant" in etab
+        assert "entreprise" in etab
         # Pas de debug par défaut
         assert data["debug"] is None
+
+    async def test_match_found_has_dirigeant(self, api_client_with_key):
+        """Le matching remonte les données dirigeant/catégorie depuis l'API."""
+        payload = {"nom": "Google France", "code_postal": "75009", "ville": "Paris"}
+        resp = await api_client_with_key.post("/api/v3/match", json=payload)
+        data = resp.json()
+        if data["matched"] and data["etablissement"]:
+            etab = data["etablissement"]
+            # Les données viennent de l'API Recherche Entreprises
+            assert etab["dirigeant"]["nom"] or etab["dirigeant"]["prenom"] or True
+            assert etab["entreprise"]["categorie"] in ("PME", "ETI", "GE", None)
 
     async def test_match_not_found(self, api_client_with_key):
         """Prospect introuvable → matched=false."""

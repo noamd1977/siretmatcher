@@ -40,6 +40,33 @@ class IdccInfo(BaseModel):
     libelle: Optional[str] = Field(default=None, description="Libellé de la convention collective")
 
 
+class DirigeantInfo(BaseModel):
+    nom: Optional[str] = Field(default=None, description="Nom du dirigeant")
+    prenom: Optional[str] = Field(default=None, description="Prénom du dirigeant")
+    fonction: Optional[str] = Field(default=None, description="Qualité/fonction (Gérant, Président…)")
+
+
+class NatureJuridiqueInfo(BaseModel):
+    code: Optional[str] = Field(default=None, description="Code nature juridique INSEE")
+    libelle: Optional[str] = Field(default=None, description="Libellé (SAS, SARL…)")
+
+
+class EntrepriseInfo(BaseModel):
+    categorie: Optional[str] = Field(default=None, description="PME, ETI, GE")
+    nature_juridique: NatureJuridiqueInfo = Field(
+        default_factory=NatureJuridiqueInfo, description="Forme juridique"
+    )
+    nombre_etablissements: Optional[int] = Field(default=None, description="Nombre d'établissements ouverts")
+    effectif_total: Optional[str] = Field(default=None, description="Effectif total de l'unité légale")
+
+
+class FinancierInfo(BaseModel):
+    chiffre_affaires: Optional[str] = Field(default=None, description="Chiffre d'affaires")
+    resultat_net: Optional[str] = Field(default=None, description="Résultat net")
+    date_comptes: Optional[str] = Field(default=None, description="Date des derniers comptes")
+    source: Optional[str] = Field(default=None, description="Source des données")
+
+
 # ── GET /api/v3/etablissements/{siret} ──────────────────────────────────────
 
 
@@ -54,6 +81,8 @@ class EtablissementResponse(BaseModel):
     adresse: AdresseInfo = Field(description="Adresse de l'établissement")
     opco: OpcoInfo = Field(description="OPCO de rattachement")
     idcc: IdccInfo = Field(description="Convention collective")
+    dirigeant: DirigeantInfo = Field(default_factory=DirigeantInfo, description="Dirigeant principal")
+    entreprise: EntrepriseInfo = Field(default_factory=EntrepriseInfo, description="Données unité légale")
     date_creation: Optional[str] = Field(default=None, description="Date de création (YYYY-MM-DD)")
     etat_administratif: Optional[str] = Field(default=None, description="A=actif, F=fermé")
 
@@ -87,6 +116,14 @@ class MatchDebug(BaseModel):
     stages: list[StageDebug] = Field(default_factory=list, description="Détail par étape")
 
 
+class LeadScoreResponse(BaseModel):
+    """Score de qualification d'un lead."""
+    total: int = Field(description="Score total (0-100)")
+    qualification: str = Field(description="hot, warm ou cold")
+    details: dict = Field(default_factory=dict, description="Score par critère")
+    recommendations: list[str] = Field(default_factory=list, description="Actions suggérées")
+
+
 class MatchResponse(BaseModel):
     """Résultat du matching intelligent."""
     matched: bool = Field(description="True si un établissement a été trouvé")
@@ -98,6 +135,9 @@ class MatchResponse(BaseModel):
     methode: Optional[str] = Field(default=None, description="Méthode de matching utilisée")
     etablissement: Optional[EtablissementResponse] = Field(
         default=None, description="Établissement trouvé (null si non trouvé)"
+    )
+    lead_score: Optional[LeadScoreResponse] = Field(
+        default=None, description="Score de qualification du lead"
     )
     debug: Optional[MatchDebug] = Field(
         default=None, description="Infos debug (uniquement si header X-Debug: true)"
@@ -121,6 +161,17 @@ class BatchResponse(BaseModel):
     taux_matching: float = Field(description="Taux de matching (0.0 à 1.0)")
     duration_ms: float = Field(description="Durée totale en ms")
     results: list[MatchResponse] = Field(description="Résultats individuels")
+
+
+# ── POST /api/v3/batch (async) ─────────────────────────────────────────────
+
+
+class AsyncBatchRequest(BaseModel):
+    """Requête de matching batch asynchrone (gros volumes)."""
+    prospects: list[MatchRequest] = Field(description="Liste de prospects")
+    concurrency: int = Field(default=10, ge=1, le=20, description="Parallélisme (1-20)")
+    callback_url: Optional[str] = Field(default=None, description="URL appelée quand le job est terminé")
+    webhook_events: bool = Field(default=True, description="Émettre les webhooks configurés")
 
 
 # ── POST /api/v3/search ─────────────────────────────────────────────────────
@@ -217,3 +268,25 @@ class OpcoReferentiel(BaseModel):
     """Un OPCO dans le référentiel."""
     nom: str = Field(description="Nom de l'OPCO")
     secteurs: str = Field(default="", description="Secteurs d'activité couverts")
+
+
+# ── GET /api/v3/etablissements/{siret}/enrich ───────────────────────────────
+
+
+class EmailResultResponse(BaseModel):
+    """Un email professionnel détecté."""
+    email: str = Field(description="Adresse email")
+    confidence: str = Field(description="verified, probable ou suggested")
+    source: str = Field(description="website, domain_pattern ou dirigeant_pattern")
+    domain_has_mx: bool = Field(default=False, description="Le domaine a un enregistrement MX")
+
+
+class EnrichResponse(BaseModel):
+    """Données enrichies d'un établissement (appels externes)."""
+    siret: str = Field(description="SIRET")
+    dirigeant: DirigeantInfo = Field(default_factory=DirigeantInfo)
+    financier: FinancierInfo = Field(default_factory=FinancierInfo)
+    entreprise: EntrepriseInfo = Field(default_factory=EntrepriseInfo)
+    emails: list[EmailResultResponse] = Field(default_factory=list, description="Emails détectés")
+    enriched_at: Optional[str] = Field(default=None, description="Date d'enrichissement ISO")
+    sources: list[str] = Field(default_factory=list, description="Sources utilisées")
