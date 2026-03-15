@@ -4,8 +4,9 @@ import logging
 import os
 import re
 import sys
+import time
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -13,18 +14,30 @@ from typing import Optional
 import uvicorn
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # Ajouter le projet au path
 sys.path.insert(0, "/opt/siret-matcher")
 os.chdir("/opt/siret-matcher")
 
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from starlette.responses import Response
+
+from siret_matcher.auth import require_api_key
+from siret_matcher import cache as siret_cache
+from siret_matcher.logging_config import setup_logging, log_structured
+from siret_matcher.metrics import (
+    REQUEST_COUNT, REQUEST_DURATION, MATCH_TOTAL, MATCH_SCORE,
+    MATCH_METHOD, MATCH_STAGES_TRIED, DST_LOOKUP_TOTAL,
+    DB_POOL_SIZE, ETABLISSEMENTS_COUNT, CACHE_HITS, CACHE_MISSES,
+)
 from siret_matcher.search_router import router as search_router
 from siret_matcher.models import Prospect, SireneResult
 from siret_matcher.matcher import match_one, match_batch
 from siret_matcher.db import SireneDB
 from siret_matcher.lookups import NAF_TO_OPCO, DEPT_TO_REGION, NAF_LIBELLES
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s %(message)s")
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -37,11 +50,42 @@ def get_real_client_ip(request: Request) -> str:
     return request.client.host
 
 
+class TimingMiddleware(BaseHTTPMiddleware):
+    """Mesure la durée de chaque requête et logge en JSON structuré."""
+
+    SKIP_PATHS = {"/health", "/metrics"}
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if path in self.SKIP_PATHS:
+            return await call_next(request)
+        start = time.perf_counter()
+        response = await call_next(request)
+        duration_s = time.perf_counter() - start
+        duration_ms = round(duration_s * 1000, 1)
+
+        # Prometheus
+        REQUEST_COUNT.labels(
+            endpoint=path, method=request.method, status=str(response.status_code)
+        ).inc()
+        REQUEST_DURATION.labels(endpoint=path).observe(duration_s)
+
+        log_structured(
+            logger, logging.INFO, "request",
+            method=request.method,
+            path=path,
+            status=response.status_code,
+            duration_ms=duration_ms,
+        )
+        return response
+
+
 limiter = Limiter(key_func=get_real_client_ip)
 app = FastAPI(title="SIRET Matcher API", version="2.0")
 app.state.limiter = limiter
 app.include_router(search_router)
 
+app.add_middleware(TimingMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -161,8 +205,11 @@ async def startup():
         app.state.pool = db.pool
         stats = await db.get_stats()
         logger.info(f"Base Sirene connectee: {stats['active']:,} etablissements actifs")
+        ETABLISSEMENTS_COUNT.set(stats["active"])
+        DB_POOL_SIZE.set(db.pool.get_size())
     except Exception as e:
         logger.error(f"Erreur connexion DB: {e}")
+    await siret_cache.connect()
 
 
 @app.on_event("shutdown")
@@ -171,21 +218,36 @@ async def shutdown():
     if http_client:
         await http_client.aclose()
     await db.close()
+    await siret_cache.close()
+
+
+@app.get("/metrics", include_in_schema=False)
+async def metrics():
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/health")
 async def health():
     try:
         stats = await db.get_stats()
-        return {"status": "ok", "etablissements_actifs": stats["active"]}
+        cache_stats = await siret_cache.get_cache_stats()
+        redis_ok = cache_stats["connected"]
+        return {
+            "status": "ok" if redis_ok else "degraded",
+            "db": "connected",
+            "redis": "connected" if redis_ok else "disconnected",
+            "cache_size": cache_stats["size"],
+            "etablissements_actifs": stats["active"],
+        }
     except Exception as e:
         return {"status": "error", "detail": str(e)}
 
 
 @app.post("/match", response_model=MatchResult)
-async def match_single(p: ProspectInput):
+async def match_single(p: ProspectInput, api_key_name: str = Depends(require_api_key)):
     """Matcher un seul prospect."""
     prospect = prospect_from_input(p)
+    t0 = time.perf_counter()
     try:
         result = await match_one(http_client, db, prospect, use_db=True)
         # Vérifier que l'établissement est actif (existe dans notre base 16.7M actifs)
@@ -199,7 +261,7 @@ async def match_single(p: ProspectInput):
                 result.result = None
                 result.score = 0
                 result.methode = "RADIE"
-        
+
         # Enrichir OPCO via table France Compétences (3.49M SIRET)
         if result.result and result.result.siret:
             opco_data = await db.get_opco(result.result.siret)
@@ -208,24 +270,62 @@ async def match_single(p: ProspectInput):
                 result.result.source_opco = "FRANCE_COMPETENCES"
                 if opco_data.get("idcc"):
                     result.result.idcc = opco_data["idcc"]
-        return result_from_prospect(result)
+        mr = result_from_prospect(result)
+        duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+        # Prometheus
+        MATCH_TOTAL.labels(result="matched" if mr.matched else "not_found").inc()
+        MATCH_SCORE.observe(mr.score)
+        if mr.methode:
+            MATCH_METHOD.labels(method=mr.methode).inc()
+        stages = getattr(result, "_stages_tried", 0)
+        if stages:
+            MATCH_STAGES_TRIED.observe(stages)
+
+        log_structured(
+            logger, logging.INFO, "match_single",
+            api_key=api_key_name,
+            prospect_name=p.nom,
+            prospect_cp=p.code_postal,
+            matched=mr.matched,
+            siret=mr.siret or "",
+            score=mr.score,
+            methode=mr.methode or "",
+            stages_tried=stages,
+            duration_ms=duration_ms,
+        )
+        return mr
     except Exception as e:
         logger.error(f"Erreur matching {p.nom}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/match/batch", response_model=BatchResponse)
-async def match_multi(req: BatchRequest):
+async def match_multi(req: BatchRequest, api_key_name: str = Depends(require_api_key)):
     """Matcher un batch de prospects."""
     prospects = [prospect_from_input(p) for p in req.prospects]
+    t0 = time.perf_counter()
     try:
         results = await match_batch(prospects, use_db=True, concurrency=req.concurrency)
         match_results = [result_from_prospect(p) for p in results]
         matched = sum(1 for r in match_results if r.matched)
-        return BatchResponse(
-            total=len(match_results),
+        total = len(match_results)
+        duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+        scores = [r.score for r in match_results if r.matched]
+        avg_score = round(sum(scores) / len(scores), 1) if scores else 0
+        log_structured(
+            logger, logging.INFO, "match_batch",
+            api_key=api_key_name,
+            total=total,
             matched=matched,
-            taux=f"{matched/len(match_results)*100:.0f}%",
+            taux=round(matched / total, 2) if total else 0,
+            avg_score=avg_score,
+            duration_ms=duration_ms,
+        )
+        return BatchResponse(
+            total=total,
+            matched=matched,
+            taux=f"{matched/total*100:.0f}%",
             results=match_results,
         )
     except Exception as e:
@@ -237,6 +337,7 @@ async def match_multi(req: BatchRequest):
 @limiter.limit("30/minute")
 async def dst_siret_lookup(request: Request, siret: str):
     """Lookup SIRET pour le simulateur dstcampus.fr."""
+    t0 = time.perf_counter()
     # Validation format
     if not SIRET_RE.match(siret):
         return JSONResponse(
@@ -244,7 +345,21 @@ async def dst_siret_lookup(request: Request, siret: str):
             content={"error": "Format SIRET invalide. Le SIRET doit contenir exactement 14 chiffres."},
         )
 
-    # Requête SQL principale avec jointures OPCO + IDCC
+    # 1. Cherche dans le cache
+    cached = await siret_cache.get_cached_siret(siret)
+    if cached is not None:
+        duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+        DST_LOOKUP_TOTAL.labels(found="true").inc()
+        CACHE_HITS.inc()
+        log_structured(
+            logger, logging.INFO, "dst_lookup",
+            siret=siret, found=True, cache="hit", duration_ms=duration_ms,
+        )
+        return cached
+
+    CACHE_MISSES.inc()
+
+    # 2. Cache miss → requête BDD
     async with db.pool.acquire() as conn:
         row = await conn.fetchrow(
             """SELECT e.siret, e.siren, e.denomination, e.denomination_usuelle, e.enseigne,
@@ -260,6 +375,12 @@ async def dst_siret_lookup(request: Request, siret: str):
         )
 
     if not row:
+        duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+        DST_LOOKUP_TOTAL.labels(found="false").inc()
+        log_structured(
+            logger, logging.INFO, "dst_lookup",
+            siret=siret, found=False, cache="miss", duration_ms=duration_ms,
+        )
         return {"found": False, "siret": siret, "message": "SIRET non trouvé dans la base SIRENE"}
 
     # Construire adresse
@@ -293,7 +414,7 @@ async def dst_siret_lookup(request: Request, siret: str):
     # Enseigne : prendre enseigne ou denomination_usuelle
     enseigne = row["enseigne"] or row["denomination_usuelle"] or ""
 
-    return {
+    result = {
         "found": True,
         "siret": row["siret"],
         "siren": row["siren"],
@@ -312,6 +433,19 @@ async def dst_siret_lookup(request: Request, siret: str):
         "ville": row["commune"] or "",
         "region": region,
     }
+
+    # 3. Met en cache (seulement si found)
+    await siret_cache.set_cached_siret(siret, result)
+
+    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+    DST_LOOKUP_TOTAL.labels(found="true").inc()
+    log_structured(
+        logger, logging.INFO, "dst_lookup",
+        siret=siret, found=True, cache="miss", opco=opco, source_opco=source_opco,
+        duration_ms=duration_ms,
+    )
+
+    return result
 
 
 if __name__ == "__main__":
