@@ -1,11 +1,12 @@
 """CLI pour SIRET Matcher."""
 import asyncio
 import logging
-import sys
+
 import click
 import pandas as pd
-from siret_matcher.models import Prospect
+
 from siret_matcher.matcher import match_batch, prospects_to_dicts
+from siret_matcher.models import Prospect
 
 
 def setup_logging(verbose: bool):

@@ -5,10 +5,16 @@ Rollback = commenter 2 lignes dans api.py + restart.
 """
 import asyncio
 import logging
+
 from fastapi import APIRouter, HTTPException, Request
+
 from .search_models import (
-    SearchProspectsRequest, SearchProspectsResponse, ProspectResult,
-    TailleEntreprise, TAILLE_CODES, REGION_DEPARTEMENTS
+    REGION_DEPARTEMENTS,
+    TAILLE_CODES,
+    ProspectResult,
+    SearchProspectsRequest,
+    SearchProspectsResponse,
+    TailleEntreprise,
 )
 
 logger = logging.getLogger("siret_matcher.search")

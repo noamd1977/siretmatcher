@@ -1,8 +1,6 @@
 """Tests du module lookups — chargement JSON, comptage, reload, fallback."""
 
 import json
-import os
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,7 +16,6 @@ from siret_matcher.lookups import (
     TRANCHE_MAP,
     reload_lookups,
 )
-
 
 # ---- Chargement sans erreur ----
 

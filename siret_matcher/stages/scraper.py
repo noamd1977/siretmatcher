@@ -1,12 +1,14 @@
 """Étape 5 : Scraping des mentions légales pour extraire le SIRET."""
 import asyncio
-import re
 import logging
+import re
+
 import httpx
 from bs4 import BeautifulSoup
-from siret_matcher.models import Prospect, SireneResult
-from siret_matcher.opco import get_opco, format_effectif
+
 from siret_matcher.db import SireneDB
+from siret_matcher.models import Prospect, SireneResult
+from siret_matcher.opco import format_effectif, get_opco
 
 logger = logging.getLogger(__name__)
 

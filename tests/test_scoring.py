@@ -2,19 +2,18 @@
 import pytest
 
 from siret_matcher.scoring import (
-    norm,
-    levenshtein_similarity,
-    jaro_winkler,
-    token_sort_ratio,
-    token_set_ratio,
-    partial_ratio,
     common_words_score,
-    score_name,
-    score_geo,
+    jaro_winkler,
+    levenshtein_similarity,
+    norm,
+    partial_ratio,
     score_address,
+    score_geo,
+    score_name,
     score_total,
+    token_set_ratio,
+    token_sort_ratio,
 )
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # norm (helper interne)

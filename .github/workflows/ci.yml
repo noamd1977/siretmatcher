@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [master, v3]
+  pull_request:
+    branches: [master, v3]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Lint
+        run: ruff check siret_matcher/ tests/
+
+  test-unit:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      - name: Run unit tests
+        run: pytest tests/ -m "not integration and not regression and not slow" -v --tb=short
+
+  # Les tests d'intégration et de régression nécessitent PostgreSQL + données SIRENE
+  # → lancés uniquement sur le serveur via make test ou make test-regression

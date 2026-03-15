@@ -1,6 +1,8 @@
 """Algorithmes de scoring pour le matching SIRET."""
-from rapidfuzz import fuzz, distance
-from siret_matcher.normalizer import strip_accents, get_distinctive_words
+from rapidfuzz import distance, fuzz
+
+from siret_matcher.normalizer import get_distinctive_words, strip_accents
+
 
 def norm(s: str) -> str:
     return strip_accents((s or "").upper()).strip()

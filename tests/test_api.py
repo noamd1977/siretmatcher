@@ -153,8 +153,9 @@ async def test_search_idcc(api_client):
 
 def test_get_real_client_ip_without_header():
     """Sans X-Forwarded-For, utilise l'IP du socket."""
-    from api import get_real_client_ip
     from unittest.mock import MagicMock
+
+    from api import get_real_client_ip
 
     request = MagicMock()
     request.headers = {}
@@ -164,8 +165,9 @@ def test_get_real_client_ip_without_header():
 
 def test_get_real_client_ip_with_forwarded_for():
     """Avec X-Forwarded-For, prend la première IP (client réel)."""
-    from api import get_real_client_ip
     from unittest.mock import MagicMock
+
+    from api import get_real_client_ip
 
     request = MagicMock()
     request.headers = {"X-Forwarded-For": "1.2.3.4, 172.18.0.2"}
@@ -175,8 +177,9 @@ def test_get_real_client_ip_with_forwarded_for():
 
 def test_get_real_client_ip_single_ip():
     """X-Forwarded-For avec une seule IP (pas de proxy chain)."""
-    from api import get_real_client_ip
     from unittest.mock import MagicMock
+
+    from api import get_real_client_ip
 
     request = MagicMock()
     request.headers = {"X-Forwarded-For": "203.0.113.50"}

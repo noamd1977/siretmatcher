@@ -6,11 +6,12 @@ pg_trgm permet de matcher :
   "PACHA" → "LE PACHA" (similarity ~0.55)
 """
 import logging
-from siret_matcher.models import Prospect, SireneResult
-from siret_matcher.scoring import score_name, score_geo, score_address
-from siret_matcher.normalizer import strip_accents, clean_voie
-from siret_matcher.opco import get_opco, format_effectif
+
 from siret_matcher.db import SireneDB
+from siret_matcher.models import Prospect, SireneResult
+from siret_matcher.normalizer import clean_voie, strip_accents
+from siret_matcher.opco import format_effectif, get_opco
+from siret_matcher.scoring import score_address, score_geo, score_name
 
 logger = logging.getLogger(__name__)
 

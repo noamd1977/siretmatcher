@@ -1,11 +1,13 @@
 """Étapes 1-2 : API Recherche d'Entreprises (gouv.fr)."""
 import asyncio
-import httpx
 import logging
+
+import httpx
+
 from siret_matcher.models import Prospect, SireneResult
-from siret_matcher.scoring import score_name, score_geo, score_address
-from siret_matcher.normalizer import strip_accents, clean_voie
-from siret_matcher.opco import get_opco, format_effectif
+from siret_matcher.normalizer import clean_voie, strip_accents
+from siret_matcher.opco import format_effectif, get_opco
+from siret_matcher.scoring import score_address, score_geo, score_name
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +42,12 @@ def _score_result(prospect: Prospect, result: dict, nom_query: str) -> tuple[flo
 
     # Trouver le meilleur établissement (CP local > siège, actif uniquement)
     best_etab = siege
-    cp_match = str(siege.get("code_postal", "")) == prospect.code_postal
     for etab in etabs:
         if str(etab.get("code_postal", "")) == prospect.code_postal:
             # Vérifier que l'établissement est actif
             if etab.get("etat_administratif", "A") != "A":
                 continue
             best_etab = etab
-            cp_match = True
             break
 
     # Score nom (sur les variantes du prospect)

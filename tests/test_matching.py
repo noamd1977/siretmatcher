@@ -2,10 +2,11 @@
 import asyncio
 import logging
 import sys
+
 sys.path.insert(0, ".")
 
 from siret_matcher.models import Prospect
-from siret_matcher.normalizer import normalize_prospect, clean_name, generate_variants
+from siret_matcher.normalizer import normalize_prospect
 
 # Les 19 entreprises du test réel
 PROSPECTS = [
@@ -81,7 +82,7 @@ def test_key_cases():
     for nom, expected in cases:
         p = Prospect(nom=nom, adresse="Test, 20090 Ajaccio", code_postal="20090", ville="Ajaccio")
         normalize_prospect(p)
-        
+
         print(f"\n  [{nom}]")
         print(f"    Attendu: {expected}")
         print(f"    clean:    {p.nom_clean}")
@@ -91,20 +92,20 @@ def test_key_cases():
         # Vérifications spécifiques
         ok = True
         if "parenthèses" in expected and "AUTO PNEUS SERVICES" not in str(p.nom_variantes):
-            print(f"    ✗ ERREUR: 'AUTO PNEUS SERVICES' manquant des variantes")
+            print("    ✗ ERREUR: 'AUTO PNEUS SERVICES' manquant des variantes")
             ok = False
         if "CORS AUTO" in expected and "CORS AUTO" not in p.nom_clean and "CORS" not in p.nom_clean:
-            print(f"    ✗ ERREUR: apostrophe non gérée")
+            print("    ✗ ERREUR: apostrophe non gérée")
             ok = False
         if "EQUIP AUTO" in expected and "EQUIP" not in p.nom_clean:
-            print(f"    ✗ ERREUR: apostrophe non gérée")
+            print("    ✗ ERREUR: apostrophe non gérée")
             ok = False
         if "ROCCASERRA" in expected and "ROCCASERRA" not in str(p.nom_variantes):
-            print(f"    ✗ ERREUR: mot distinctif perdu")
+            print("    ✗ ERREUR: mot distinctif perdu")
             ok = False
 
         if ok:
-            print(f"    ✓ OK")
+            print("    ✓ OK")
         else:
             all_ok = False
 

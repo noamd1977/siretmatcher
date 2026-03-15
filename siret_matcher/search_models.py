@@ -2,9 +2,10 @@
 Modèles Pydantic pour les endpoints /search/*
 Fichier séparé pour ne pas toucher à models.py existant.
 """
-from pydantic import BaseModel, Field
-from typing import Optional
 from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, Field
 
 
 class TailleEntreprise(str, Enum):

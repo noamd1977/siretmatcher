@@ -1,7 +1,7 @@
 # DEPRECATED: les dictionnaires sont dans lookups.py — ce module ne garde que les fonctions.
 """Fonctions OPCO et effectif. Les dicts de référence sont dans lookups.py."""
 
-from siret_matcher.lookups import NAF_TO_OPCO, ENSEIGNE_TO_OPCO, TRANCHE_MAP
+from siret_matcher.lookups import ENSEIGNE_TO_OPCO, NAF_TO_OPCO, TRANCHE_MAP
 
 
 def get_opco(naf: str = "", nom: str = "") -> tuple[str, str]:

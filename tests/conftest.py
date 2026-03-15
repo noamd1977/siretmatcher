@@ -1,5 +1,4 @@
 """Fixtures partagées pour la suite de tests SIRET Matcher."""
-import asyncio
 import os
 import sys
 

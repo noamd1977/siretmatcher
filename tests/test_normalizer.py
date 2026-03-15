@@ -1,24 +1,23 @@
 """Tests exhaustifs pour siret_matcher/normalizer.py."""
 import pytest
 
+from siret_matcher.models import Prospect
 from siret_matcher.normalizer import (
-    strip_accents,
-    normalize_base,
-    extract_parentheses,
-    split_franchise,
-    remove_words,
-    clean_name,
-    get_distinctive_words,
-    generate_variants,
-    normalize_address,
-    clean_voie,
-    normalize_prospect,
+    ALL_BRANDS,
     FRANCHISES,
     MARQUES_AUTO,
-    ALL_BRANDS,
+    clean_name,
+    clean_voie,
+    extract_parentheses,
+    generate_variants,
+    get_distinctive_words,
+    normalize_address,
+    normalize_base,
+    normalize_prospect,
+    remove_words,
+    split_franchise,
+    strip_accents,
 )
-from siret_matcher.models import Prospect
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # strip_accents

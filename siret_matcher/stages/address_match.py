@@ -5,14 +5,15 @@ C'est le game-changer pour les franchises :
 → chercher TOUS les établissements actifs à cette adresse
 → souvent il n'y en a qu'un seul = match direct
 """
-import httpx
 import logging
-import re
-from siret_matcher.models import Prospect, SireneResult
-from siret_matcher.scoring import score_name, score_address
-from siret_matcher.normalizer import strip_accents, clean_voie, normalize_address
-from siret_matcher.opco import get_opco, format_effectif
+
+import httpx
+
 from siret_matcher.db import SireneDB
+from siret_matcher.models import Prospect, SireneResult
+from siret_matcher.normalizer import clean_voie, strip_accents
+from siret_matcher.opco import format_effectif, get_opco
+from siret_matcher.scoring import score_address, score_name
 
 logger = logging.getLogger(__name__)
 

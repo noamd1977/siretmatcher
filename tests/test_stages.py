@@ -7,24 +7,23 @@ réel de chaque stage indépendamment.
 
 Les tests du scraper qui n'ont pas besoin du réseau utilisent des mocks.
 """
-import asyncio
 import re
 
 import httpx
 import pytest
 
 from siret_matcher.db import SireneDB
-from siret_matcher.models import Prospect, SireneResult
+from siret_matcher.models import Prospect
 from siret_matcher.normalizer import normalize_prospect
-from siret_matcher.stages.api_recherche import stage_api_recherche
 from siret_matcher.stages.address_match import stage_address_match
-from siret_matcher.stages.trigram_match import stage_trigram_match
+from siret_matcher.stages.api_recherche import stage_api_recherche
 from siret_matcher.stages.scraper import (
-    stage_scrape_siret,
     _extract_siret_from_html,
-    _validate_siret,
     _validate_siren,
+    _validate_siret,
+    stage_scrape_siret,
 )
+from siret_matcher.stages.trigram_match import stage_trigram_match
 
 pytestmark = [
     pytest.mark.integration,

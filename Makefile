@@ -1,4 +1,4 @@
-.PHONY: test test-fast test-integration test-regression test-coverage
+.PHONY: test test-fast test-integration test-regression test-coverage lint lint-fix deploy import-sirene import-opco
 
 ## Lance tous les tests
 test:
@@ -18,4 +18,24 @@ test-regression:
 
 ## Rapport de couverture
 test-coverage:
-	pytest tests/ --cov=siret_matcher --cov-report=term-missing --tb=short
+	pytest tests/ --cov=siret_matcher --cov-report=term-missing -m "not slow"
+
+## Lint
+lint:
+	ruff check siret_matcher/ tests/
+
+## Lint avec correction automatique
+lint-fix:
+	ruff check --fix siret_matcher/ tests/
+
+## Déploiement
+deploy:
+	./scripts/deploy.sh
+
+## Import base SIRENE
+import-sirene:
+	python scripts/import_sirene.py
+
+## Import table OPCO
+import-opco:
+	python scripts/import_opco.py

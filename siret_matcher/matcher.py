@@ -1,15 +1,17 @@
 """Pipeline orchestrateur : enchaîne les 5 étapes de matching."""
 import asyncio
 import logging
+
 import httpx
 from tqdm.asyncio import tqdm_asyncio
+
+from siret_matcher.db import SireneDB
 from siret_matcher.models import Prospect, SireneResult
 from siret_matcher.normalizer import normalize_prospect
-from siret_matcher.db import SireneDB
-from siret_matcher.stages.api_recherche import stage_api_recherche
 from siret_matcher.stages.address_match import stage_address_match
-from siret_matcher.stages.trigram_match import stage_trigram_match
+from siret_matcher.stages.api_recherche import stage_api_recherche
 from siret_matcher.stages.scraper import stage_scrape_siret
+from siret_matcher.stages.trigram_match import stage_trigram_match
 
 logger = logging.getLogger(__name__)
 
