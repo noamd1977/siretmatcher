@@ -9,3 +9,5 @@ gspread>=6.0
 google-auth>=2.27
 tqdm>=4.66
 click>=8.1
+prometheus-client>=0.20
+redis>=5.0
