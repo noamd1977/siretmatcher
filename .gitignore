@@ -1,6 +1,40 @@
-venv/
+# Python
 __pycache__/
 *.pyc
-config/.env
+*.pyo
+.pytest_cache/
 *.egg-info/
+dist/
+build/
+venv/
+.venv/
+
+# Test / coverage
+.coverage
+htmlcov/
+.tox/
+
+# Environnement
+config/.env
+.env
+!config/data/*.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Données volumineuses (imports SIRENE/OPCO)
+*.csv
+*.csv.gz
+*.xlsx
+/tmp/
+!tests/data/*.csv
+
+# Credentials
+service_account.json
