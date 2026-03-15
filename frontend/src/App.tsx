@@ -5,6 +5,7 @@ import { Layout } from './components/layout/Layout';
 import { SearchPage } from './components/search/SearchPage';
 import { MatchPage } from './components/match/MatchPage';
 import { DashboardPage } from './components/dashboard/DashboardPage';
+import { IntegrationsPage } from './components/integrations/IntegrationsPage';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
             <Route path="/" element={<SearchPage />} />
             <Route path="/match" element={<MatchPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/integrations" element={<IntegrationsPage />} />
           </Routes>
         </Layout>
       </BrowserRouter>

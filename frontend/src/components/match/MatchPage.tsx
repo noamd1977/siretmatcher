@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Send, Bug, AlertCircle, CheckCircle2, MinusCircle } from 'lucide-react';
 import { matchSingle } from '../../api/client';
 import { Badge } from '../common/Badge';
+import { LeadScoreDetail } from '../common/LeadScoreBadge';
 import { Spinner } from '../common/Spinner';
 import { formatAdresse, formatSiret, formatEffectif } from '../../utils/formatters';
 import { BatchUpload } from './BatchUpload';
@@ -198,6 +199,16 @@ function MatchResult({ result }: { result: MatchResponse }) {
           )}
         </div>
       </div>
+
+      {/* Lead Score */}
+      {result.lead_score && (
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Qualification du lead
+          </h4>
+          <LeadScoreDetail lead={result.lead_score} />
+        </div>
+      )}
 
       {/* Debug */}
       {result.debug && (

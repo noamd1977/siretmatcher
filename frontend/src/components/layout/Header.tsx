@@ -1,10 +1,11 @@
-import { Building2, Search, Crosshair, BarChart3 } from 'lucide-react';
+import { Building2, Search, Crosshair, BarChart3, Webhook } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 
 const links = [
   { to: '/', label: 'Recherche', icon: Search },
   { to: '/match', label: 'Matching', icon: Crosshair },
   { to: '/dashboard', label: 'Dashboard', icon: BarChart3 },
+  { to: '/integrations', label: 'Integrations', icon: Webhook },
 ];
 
 export function Header() {

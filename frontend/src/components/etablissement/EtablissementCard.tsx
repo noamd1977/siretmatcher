@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { X, Copy, ExternalLink, CheckCircle } from 'lucide-react';
+import { X, Copy, ExternalLink, CheckCircle, Sparkles, Mail } from 'lucide-react';
 import { useState } from 'react';
-import { getEtablissement } from '../../api/client';
+import { getEtablissement, enrichEtablissement } from '../../api/client';
 import { Badge } from '../common/Badge';
 import { Spinner } from '../common/Spinner';
 import { formatAdresse, formatSiret, formatEffectif } from '../../utils/formatters';
+import type { EnrichResponse } from '../../types/api';
 
 interface Props {
   siret: string;
@@ -17,6 +18,8 @@ export function EtablissementCard({ siret, onClose }: Props) {
     queryFn: () => getEtablissement(siret),
   });
   const [copied, setCopied] = useState(false);
+  const [enrichData, setEnrichData] = useState<EnrichResponse | null>(null);
+  const [enrichLoading, setEnrichLoading] = useState(false);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(siret);
@@ -24,8 +27,20 @@ export function EtablissementCard({ siret, onClose }: Props) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleEnrich = async () => {
+    setEnrichLoading(true);
+    try {
+      const data = await enrichEtablissement(siret);
+      setEnrichData(data);
+    } catch {
+      // silent
+    } finally {
+      setEnrichLoading(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 pt-20" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 pt-10 pb-10" onClick={onClose}>
       <div
         className="relative w-full max-w-2xl rounded-xl border border-gray-200 bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -76,11 +91,39 @@ export function EtablissementCard({ siret, onClose }: Props) {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <Field label="SIREN" value={etab.siren} />
                 <Field label="NAF" value={`${etab.naf.code} — ${etab.naf.libelle}`} />
-                <Field label="Effectif" value={formatEffectif(etab.effectif)} />
+                <Field label="Effectif établ." value={formatEffectif(etab.effectif)} />
                 <Field label="Date de création" value={etab.date_creation} />
                 <Field label="Adresse" value={formatAdresse(etab.adresse)} />
                 <Field label="Région" value={etab.adresse.region} />
               </div>
+
+              {/* Dirigeant + Entreprise (from matching or enrichment) */}
+              {(etab.dirigeant?.nom || etab.entreprise?.categorie) && (
+                <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Entreprise</h4>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    {etab.dirigeant?.nom && (
+                      <Field
+                        label="Dirigeant"
+                        value={`${etab.dirigeant.prenom || ''} ${etab.dirigeant.nom}`.trim() +
+                          (etab.dirigeant.fonction ? ` (${etab.dirigeant.fonction})` : '')}
+                      />
+                    )}
+                    {etab.entreprise?.categorie && (
+                      <Field label="Catégorie" value={etab.entreprise.categorie} />
+                    )}
+                    {etab.entreprise?.nature_juridique?.libelle && (
+                      <Field label="Forme juridique" value={etab.entreprise.nature_juridique.libelle} />
+                    )}
+                    {etab.entreprise?.nombre_etablissements && (
+                      <Field label="Établissements" value={String(etab.entreprise.nombre_etablissements)} />
+                    )}
+                    {etab.entreprise?.effectif_total && (
+                      <Field label="Effectif total" value={etab.entreprise.effectif_total} />
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* OPCO / IDCC */}
               <div className="flex flex-wrap gap-2">
@@ -92,10 +135,92 @@ export function EtablissementCard({ siret, onClose }: Props) {
                 {etab.idcc.code && (
                   <Badge variant="blue">
                     IDCC {etab.idcc.code}
-                    {etab.idcc.libelle && ` — ${etab.idcc.libelle.slice(0, 60)}...`}
+                    {etab.idcc.libelle && ` — ${etab.idcc.libelle.slice(0, 60)}…`}
                   </Badge>
                 )}
               </div>
+
+              {/* Enrichment section */}
+              {!enrichData && (
+                <button
+                  onClick={handleEnrich}
+                  disabled={enrichLoading}
+                  className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
+                >
+                  {enrichLoading ? <Spinner className="h-4 w-4" /> : <Sparkles size={16} />}
+                  Enrichir (dirigeant, données financières…)
+                </button>
+              )}
+
+              {enrichData && (
+                <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-4">
+                  <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-blue-600">
+                    <Sparkles size={14} /> Données enrichies
+                    <span className="font-normal normal-case text-blue-400">
+                      — sources: {enrichData.sources.join(', ') || 'aucune'}
+                    </span>
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    {enrichData.dirigeant?.nom && (
+                      <Field
+                        label="Dirigeant"
+                        value={`${enrichData.dirigeant.prenom || ''} ${enrichData.dirigeant.nom}`.trim() +
+                          (enrichData.dirigeant.fonction ? ` (${enrichData.dirigeant.fonction})` : '')}
+                      />
+                    )}
+                    {enrichData.entreprise?.categorie && (
+                      <Field label="Catégorie" value={enrichData.entreprise.categorie} />
+                    )}
+                    {enrichData.entreprise?.nature_juridique?.libelle && (
+                      <Field label="Forme juridique" value={enrichData.entreprise.nature_juridique.libelle} />
+                    )}
+                    {enrichData.financier?.chiffre_affaires && (
+                      <Field label="Chiffre d'affaires" value={enrichData.financier.chiffre_affaires} />
+                    )}
+                    {enrichData.financier?.resultat_net && (
+                      <Field label="Résultat net" value={enrichData.financier.resultat_net} />
+                    )}
+                    {enrichData.financier?.date_comptes && (
+                      <Field label="Date comptes" value={enrichData.financier.date_comptes} />
+                    )}
+                  </div>
+
+                  {/* Emails */}
+                  {enrichData.emails && enrichData.emails.length > 0 && (
+                    <div className="mt-3 border-t border-blue-100 pt-3">
+                      <h5 className="mb-2 flex items-center gap-1 text-xs font-semibold text-blue-600">
+                        <Mail size={12} /> Emails détectés
+                      </h5>
+                      <div className="space-y-1.5">
+                        {enrichData.emails.map((em) => (
+                          <div key={em.email} className="flex items-center gap-2 text-sm">
+                            <span className={`inline-block h-2 w-2 rounded-full ${
+                              em.confidence === 'verified' ? 'bg-green-500' :
+                              em.confidence === 'probable' ? 'bg-amber-400' : 'bg-gray-400'
+                            }`} />
+                            <a href={`mailto:${em.email}`} className="text-blue-700 hover:underline">
+                              {em.email}
+                            </a>
+                            <Badge variant={
+                              em.confidence === 'verified' ? 'green' :
+                              em.confidence === 'probable' ? 'orange' : 'gray'
+                            }>
+                              {em.confidence}
+                            </Badge>
+                            <button
+                              onClick={() => { navigator.clipboard.writeText(em.email); }}
+                              className="text-gray-400 hover:text-gray-600"
+                              title="Copier"
+                            >
+                              <Copy size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Links */}
               <div className="flex gap-3 border-t border-gray-100 pt-4">

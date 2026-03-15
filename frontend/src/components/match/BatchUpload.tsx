@@ -1,11 +1,12 @@
-import { useState, useCallback, useRef } from 'react';
-import { Upload, FileSpreadsheet, Download, Play, X } from 'lucide-react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { Upload, FileSpreadsheet, Download, Play, X, Clock, CheckCircle } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { matchBatch } from '../../api/client';
+import { matchBatch, createAsyncBatch, getBatchStatus, getBatchCsvUrl } from '../../api/client';
 import { Badge } from '../common/Badge';
+import { LeadScoreBadge } from '../common/LeadScoreBadge';
 import { Spinner } from '../common/Spinner';
-import type { MatchRequest, BatchResponse, MatchResponse } from '../../types/api';
+import type { MatchRequest, BatchResponse, MatchResponse, BatchJobStatus } from '../../types/api';
 
 // Column name aliases for auto-detection
 const ALIASES: Record<string, string[]> = {
@@ -44,9 +45,11 @@ function autoDetect(columns: string[]): Partial<ColumnMapping> {
 }
 
 const CHUNK_SIZE = 50;
+const ASYNC_THRESHOLD = 50;
 
 export function BatchUpload() {
   const fileRef = useRef<HTMLInputElement>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
   const [mapping, setMapping] = useState<ColumnMapping>({
@@ -58,8 +61,21 @@ export function BatchUpload() {
   const [progress, setProgress] = useState(0);
   const [fileName, setFileName] = useState('');
 
+  // Async batch state
+  const [asyncJobId, setAsyncJobId] = useState<string | null>(null);
+  const [asyncStatus, setAsyncStatus] = useState<BatchJobStatus | null>(null);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+
   const handleFile = useCallback((file: File) => {
     setResult(null);
+    setAsyncJobId(null);
+    setAsyncStatus(null);
     setFileName(file.name);
     const ext = file.name.split('.').pop()?.toLowerCase();
 
@@ -103,14 +119,10 @@ export function BatchUpload() {
   );
 
   const canRun = mapping.nom && mapping.code_postal && rows.length > 0;
+  const useAsync = rows.length > ASYNC_THRESHOLD;
 
-  const handleRun = async () => {
-    if (!canRun) return;
-    setLoading(true);
-    setProgress(0);
-    setResult(null);
-
-    const prospects: MatchRequest[] = rows.map((r) => ({
+  const buildProspects = (): MatchRequest[] =>
+    rows.map((r) => ({
       nom: r[mapping.nom] || '',
       adresse: mapping.adresse ? r[mapping.adresse] || '' : '',
       code_postal: r[mapping.code_postal] || '',
@@ -120,7 +132,13 @@ export function BatchUpload() {
       email: mapping.email ? r[mapping.email] || '' : '',
     }));
 
-    // Process in chunks
+  const handleRunSync = async () => {
+    if (!canRun) return;
+    setLoading(true);
+    setProgress(0);
+    setResult(null);
+
+    const prospects = buildProspects();
     const allResults: MatchResponse[] = [];
     let totalMatched = 0;
     const t0 = performance.now();
@@ -132,7 +150,6 @@ export function BatchUpload() {
         allResults.push(...res.results);
         totalMatched += res.matched;
       } catch {
-        // Push empty results for failed chunk
         allResults.push(
           ...chunk.map(() => ({
             matched: false,
@@ -140,6 +157,7 @@ export function BatchUpload() {
             score: 0,
             methode: 'ERREUR',
             etablissement: null,
+            lead_score: null,
             debug: null,
           })),
         );
@@ -159,6 +177,42 @@ export function BatchUpload() {
     setLoading(false);
   };
 
+  const handleRunAsync = async () => {
+    if (!canRun) return;
+    setLoading(true);
+    setProgress(0);
+    setResult(null);
+    setAsyncStatus(null);
+
+    const prospects = buildProspects();
+
+    try {
+      const resp = await createAsyncBatch({ prospects, concurrency: 10 });
+      setAsyncJobId(resp.job_id);
+
+      // Start polling
+      pollRef.current = setInterval(async () => {
+        try {
+          const status = await getBatchStatus(resp.job_id);
+          setAsyncStatus(status);
+          setProgress(status.progress.percent);
+
+          if (status.status === 'completed' || status.status === 'failed') {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            setLoading(false);
+          }
+        } catch {
+          // ignore poll errors
+        }
+      }, 2000);
+    } catch {
+      setLoading(false);
+    }
+  };
+
+  const handleRun = useAsync ? handleRunAsync : handleRunSync;
+
   const handleExport = () => {
     if (!result) return;
     const exportRows = rows.map((r, i) => {
@@ -176,6 +230,9 @@ export function BatchUpload() {
         score: mr?.score || 0,
         methode: mr?.methode || '',
         matched: mr?.matched ? 'OUI' : 'NON',
+        lead_score_total: mr?.lead_score?.total || '',
+        lead_qualification: mr?.lead_score?.qualification || '',
+        lead_recommendations: mr?.lead_score?.recommendations?.join(' | ') || '',
       };
     });
     const ws = XLSX.utils.json_to_sheet(exportRows);
@@ -188,8 +245,11 @@ export function BatchUpload() {
     setRows([]);
     setColumns([]);
     setResult(null);
+    setAsyncJobId(null);
+    setAsyncStatus(null);
     setFileName('');
     setProgress(0);
+    if (pollRef.current) clearInterval(pollRef.current);
     if (fileRef.current) fileRef.current.value = '';
   };
 
@@ -214,7 +274,7 @@ export function BatchUpload() {
               parcourir
             </button>
           </p>
-          <p className="mt-1 text-xs text-gray-400">CSV, XLSX — max 5 000 lignes</p>
+          <p className="mt-1 text-xs text-gray-400">CSV, XLSX — jusqu'a 100 000+ lignes</p>
           <input
             ref={fileRef}
             type="file"
@@ -230,7 +290,10 @@ export function BatchUpload() {
             <div className="flex items-center gap-2 text-sm text-gray-700">
               <FileSpreadsheet size={16} />
               <span className="font-medium">{fileName}</span>
-              <span className="text-gray-400">— {rows.length} lignes, {columns.length} colonnes</span>
+              <span className="text-gray-400">— {rows.length.toLocaleString()} lignes, {columns.length} colonnes</span>
+              {useAsync && (
+                <Badge variant="purple">Mode file d'attente</Badge>
+              )}
             </div>
             <button onClick={handleReset} className="text-gray-400 hover:text-gray-600">
               <X size={16} />
@@ -269,7 +332,7 @@ export function BatchUpload() {
               className="inline-flex items-center gap-2 rounded-lg bg-[#1e3a5f] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#16304f] disabled:opacity-40"
             >
               {loading ? <Spinner className="h-4 w-4" /> : <Play size={16} />}
-              Lancer le matching ({rows.length} prospects)
+              {useAsync ? `Lancer en file d'attente (${rows.length.toLocaleString()})` : `Lancer le matching (${rows.length})`}
             </button>
 
             {loading && (
@@ -285,13 +348,70 @@ export function BatchUpload() {
             )}
           </div>
 
-          {/* Results */}
+          {/* Async job status */}
+          {asyncStatus && (
+            <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-4">
+              <div className="flex items-center gap-2 text-sm">
+                {asyncStatus.status === 'completed' ? (
+                  <CheckCircle size={16} className="text-green-500" />
+                ) : asyncStatus.status === 'failed' ? (
+                  <X size={16} className="text-red-500" />
+                ) : (
+                  <Clock size={16} className="text-blue-500" />
+                )}
+                <span className="font-medium text-gray-900">
+                  Job {asyncJobId?.slice(0, 8)}
+                </span>
+                <Badge variant={
+                  asyncStatus.status === 'completed' ? 'green' :
+                  asyncStatus.status === 'failed' ? 'orange' :
+                  asyncStatus.status === 'processing' ? 'blue' : 'gray'
+                }>
+                  {asyncStatus.status}
+                </Badge>
+              </div>
+              <div className="mt-2 grid grid-cols-4 gap-3 text-xs text-gray-600">
+                <div>Total: {asyncStatus.progress.total.toLocaleString()}</div>
+                <div>Traites: {asyncStatus.progress.processed.toLocaleString()}</div>
+                <div>Matches: {asyncStatus.progress.matched.toLocaleString()}</div>
+                <div>Non trouves: {asyncStatus.progress.not_found.toLocaleString()}</div>
+              </div>
+              {asyncStatus.eta_seconds && asyncStatus.status === 'processing' && (
+                <p className="mt-1 text-xs text-gray-400">
+                  ETA: ~{Math.round(asyncStatus.eta_seconds)}s
+                </p>
+              )}
+              {asyncStatus.status === 'completed' && asyncStatus.duration_seconds && (
+                <p className="mt-1 text-xs text-gray-400">
+                  Termine en {asyncStatus.duration_seconds.toFixed(1)}s —
+                  Taux: {asyncStatus.progress.total > 0
+                    ? ((asyncStatus.progress.matched / asyncStatus.progress.total) * 100).toFixed(0)
+                    : 0}%
+                </p>
+              )}
+              {asyncStatus.status === 'completed' && asyncJobId && (
+                <div className="mt-3 flex gap-2">
+                  <a
+                    href={getBatchCsvUrl(asyncJobId)}
+                    className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+                  >
+                    <Download size={14} /> Telecharger CSV
+                  </a>
+                </div>
+              )}
+              {asyncStatus.status === 'failed' && asyncStatus.error && (
+                <p className="mt-2 text-xs text-red-600">{asyncStatus.error}</p>
+              )}
+            </div>
+          )}
+
+          {/* Sync results */}
           {result && (
             <div className="space-y-4">
               {/* Summary */}
               <div className="flex flex-wrap items-center gap-3 rounded-lg bg-gray-50 px-4 py-3">
-                <Badge variant="green">{result.matched} matchés</Badge>
-                <Badge variant="gray">{result.not_found} non trouvés</Badge>
+                <Badge variant="green">{result.matched} matches</Badge>
+                <Badge variant="gray">{result.not_found} non trouves</Badge>
                 <span className="text-sm text-gray-500">
                   Taux : {(result.taux_matching * 100).toFixed(0)}% — {(result.duration_ms / 1000).toFixed(1)}s
                 </span>
@@ -311,9 +431,10 @@ export function BatchUpload() {
                       <th className="px-3 py-2">#</th>
                       <th className="px-3 py-2">Nom</th>
                       <th className="px-3 py-2">Statut</th>
-                      <th className="px-3 py-2">SIRET trouvé</th>
+                      <th className="px-3 py-2">SIRET trouve</th>
                       <th className="px-3 py-2">Score</th>
-                      <th className="px-3 py-2">Méthode</th>
+                      <th className="px-3 py-2">Methode</th>
+                      <th className="px-3 py-2">Lead</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -335,6 +456,9 @@ export function BatchUpload() {
                         </td>
                         <td className="px-3 py-2">{mr.score > 0 ? `${mr.score}%` : ''}</td>
                         <td className="px-3 py-2 text-xs text-gray-500">{mr.methode}</td>
+                        <td className="px-3 py-2">
+                          {mr.lead_score && <LeadScoreBadge lead={mr.lead_score} />}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
