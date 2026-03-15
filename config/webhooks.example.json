@@ -1,0 +1,26 @@
+{
+  "webhooks": [
+    {
+      "id": "akol-crm",
+      "name": "CRM Akol",
+      "url": "https://akol.example.com/api/webhooks/prospect",
+      "events": ["match.success", "match.batch_complete", "enrich.complete"],
+      "headers": {
+        "Authorization": "Bearer {AKOL_API_TOKEN}",
+        "Content-Type": "application/json"
+      },
+      "active": true,
+      "retry": 3,
+      "timeout": 10
+    },
+    {
+      "id": "n8n-enrichment",
+      "name": "n8n Enrichment Flow",
+      "url": "https://n8n.example.com/webhook/siret-enriched",
+      "events": ["match.success"],
+      "active": true,
+      "retry": 2,
+      "timeout": 5
+    }
+  ]
+}
