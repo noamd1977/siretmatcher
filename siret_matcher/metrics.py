@@ -75,6 +75,29 @@ ETABLISSEMENTS_COUNT = Gauge(
     "Nombre d'établissements en BDD"
 )
 
+# Scraping
+SCRAPE_TOTAL = Counter(
+    "siret_matcher_scrape_total",
+    "Total de scrapes tentés"
+)
+
+SCRAPE_SUCCESS = Counter(
+    "siret_matcher_scrape_success_total",
+    "Scrapes ayant trouvé un SIRET"
+)
+
+SCRAPE_PAGES_CRAWLED = Histogram(
+    "siret_matcher_scrape_pages_crawled",
+    "Pages crawlées par prospect",
+    buckets=[1, 2, 3, 5, 8, 10, 15, 20]
+)
+
+SCRAPE_ERRORS = Counter(
+    "siret_matcher_scrape_errors_total",
+    "Erreurs de scraping",
+    ["error_type"]
+)
+
 # Cache Redis
 CACHE_HITS = Counter(
     "siret_matcher_cache_hits_total",

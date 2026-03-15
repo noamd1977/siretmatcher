@@ -142,6 +142,22 @@ class SireneDB:
         all_results.sort(key=lambda r: r.get("best_sim", 0), reverse=True)
         return all_results[:limit]
 
+    async def search_by_siren(self, siren: str, limit: int = 10) -> list[dict]:
+        """Chercher tous les établissements actifs d'un SIREN."""
+        query = """
+        SELECT siret, siren, denomination, enseigne, naf,
+               numero_voie, type_voie, voie, code_postal, commune,
+               tranche_effectif, date_creation, etat_administratif
+        FROM etablissements
+        WHERE etat_administratif = 'A'
+          AND siren = $1
+        ORDER BY date_creation DESC
+        LIMIT $2
+        """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, siren, limit)
+        return [dict(r) for r in rows]
+
     async def validate_siret(self, siret: str) -> dict | None:
         """Valider un SIRET trouvé par scraping."""
         query = """

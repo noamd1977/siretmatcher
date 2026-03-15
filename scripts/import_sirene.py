@@ -113,6 +113,9 @@ INDEXES = [
      "CREATE INDEX idx_enseigne_trgm ON etablissements USING GIN (enseigne_clean gin_trgm_ops)"),
     ("idx_voie_trgm",
      "CREATE INDEX idx_voie_trgm ON etablissements USING GIN (voie_clean gin_trgm_ops)"),
+    # Full-text search GIN
+    ("idx_search_vector",
+     "CREATE INDEX idx_search_vector ON etablissements USING GIN (search_vector)"),
 ]
 
 
@@ -266,7 +269,8 @@ def create_temp_table():
         departement TEXT,
         denomination_clean TEXT,
         enseigne_clean     TEXT,
-        voie_clean         TEXT
+        voie_clean         TEXT,
+        search_vector      tsvector
     );
     """)
 
@@ -545,6 +549,35 @@ def main():
 
     # -- Swap --
     swap_tables()
+
+    # -- Full-text search : peupler search_vector + trigger --
+    log.info("Peuplement du search_vector (tsvector) ...")
+    t_fts = time.time()
+    psql("""
+    UPDATE etablissements SET search_vector =
+        setweight(to_tsvector('french', COALESCE(denomination, '')), 'A') ||
+        setweight(to_tsvector('french', COALESCE(enseigne, '')), 'B') ||
+        setweight(to_tsvector('french', COALESCE(commune, '')), 'C');
+    """)
+    log.info("search_vector peuplé en %.0fs", time.time() - t_fts)
+
+    log.info("Création du trigger search_vector ...")
+    psql("""
+    CREATE OR REPLACE FUNCTION update_search_vector() RETURNS trigger AS $$
+    BEGIN
+        NEW.search_vector :=
+            setweight(to_tsvector('french', COALESCE(NEW.denomination, '')), 'A') ||
+            setweight(to_tsvector('french', COALESCE(NEW.enseigne, '')), 'B') ||
+            setweight(to_tsvector('french', COALESCE(NEW.commune, '')), 'C');
+        RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+    """)
+    psql("""
+    CREATE TRIGGER trg_search_vector
+        BEFORE INSERT OR UPDATE ON etablissements
+        FOR EACH ROW EXECUTE FUNCTION update_search_vector();
+    """)
 
     # -- Vérification --
     verify()
