@@ -108,3 +108,45 @@ CACHE_MISSES = Counter(
     "siret_matcher_cache_misses_total",
     "Cache misses"
 )
+
+# Webhooks
+WEBHOOK_SENT = Counter(
+    "siret_matcher_webhook_sent_total",
+    "Webhooks envoyes avec succes",
+    ["webhook_id", "event"]
+)
+
+WEBHOOK_ERRORS = Counter(
+    "siret_matcher_webhook_errors_total",
+    "Erreurs webhook",
+    ["webhook_id", "error_type"]
+)
+
+WEBHOOK_DURATION = Histogram(
+    "siret_matcher_webhook_duration_seconds",
+    "Duree envoi webhook",
+    ["webhook_id"],
+    buckets=[0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
+)
+
+# Batch async
+BATCH_JOBS_TOTAL = Counter(
+    "siret_matcher_batch_jobs_total",
+    "Batch jobs crees"
+)
+
+BATCH_JOBS_ACTIVE = Gauge(
+    "siret_matcher_batch_jobs_active",
+    "Batch jobs en cours"
+)
+
+BATCH_PROSPECTS_PROCESSED = Counter(
+    "siret_matcher_batch_prospects_processed_total",
+    "Prospects traites en batch"
+)
+
+BATCH_DURATION = Histogram(
+    "siret_matcher_batch_duration_seconds",
+    "Duree des batch jobs",
+    buckets=[10, 30, 60, 120, 300, 600, 1800]
+)

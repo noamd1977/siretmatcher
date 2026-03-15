@@ -232,6 +232,11 @@ async def startup():
     app.state.http_client = http_client
     await siret_cache.connect()
 
+    # Start batch worker
+    from siret_matcher.queue import batch_queue
+    batch_queue.set_deps(db, http_client, app.state.pool)
+    asyncio.create_task(batch_queue.start_worker(concurrency=5))
+
 
 @app.on_event("shutdown")
 async def shutdown():

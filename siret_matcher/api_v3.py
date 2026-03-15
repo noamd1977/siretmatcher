@@ -13,25 +13,34 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from siret_matcher.auth import require_api_key
 from siret_matcher.logging_config import log_structured
+from siret_matcher.webhooks import webhook_manager
 from siret_matcher.lookups import (
     DEPT_TO_REGION,
     IDCC_TO_CONVENTION,
     NAF_LIBELLES,
     NAF_TO_OPCO,
+    NATURE_JURIDIQUE,
     TRANCHE_MAP,
 )
+from siret_matcher.lead_scoring import score_lead, load_config as load_scoring_config, save_config as save_scoring_config
 from siret_matcher.models_v3 import (
     AdresseInfo,
     AutocompleteResult,
     BatchRequest,
     BatchResponse,
+    DirigeantInfo,
     EffectifInfo,
+    EnrichResponse,
+    EntrepriseInfo,
     EtablissementResponse,
+    FinancierInfo,
     IdccInfo,
+    LeadScoreResponse,
     MatchDebug,
     MatchRequest,
     MatchResponse,
     NafInfo,
+    NatureJuridiqueInfo,
     OpcoInfo,
     OpcoReferentiel,
     SearchFacets,
@@ -69,17 +78,64 @@ def _confidence(score: float) -> str:
     return "low"
 
 
+def _compute_lead_score(r, opco_name: str, opco_source: str,
+                        idcc_code: str, etab_row) -> LeadScoreResponse | None:
+    """Compute lead score from match result and DB data."""
+    if not r or not r.siret:
+        return None
+    dept = ""
+    adresse_complete = False
+    tranche = ""
+    if etab_row:
+        cp = etab_row.get("code_postal") or ""
+        dept = _dept_from_cp(cp)
+        adresse_complete = bool(etab_row.get("voie") and cp)
+        tranche = etab_row.get("tranche_effectif") or r.tranche_effectif_code or ""
+    else:
+        tranche = r.tranche_effectif_code or ""
+
+    ls_data = {
+        "siret": r.siret,
+        "naf": r.naf,
+        "tranche_effectif": tranche,
+        "opco": opco_name or r.opco,
+        "source_opco": opco_source or r.source_opco,
+        "idcc": idcc_code or r.idcc,
+        "dirigeant": r.dirigeant_nom or r.dirigeant,
+        "date_creation": r.date_creation,
+        "departement": dept,
+        "adresse_complete": adresse_complete,
+    }
+    ls = score_lead(ls_data)
+    return LeadScoreResponse(
+        total=ls.total,
+        qualification=ls.qualification,
+        details=ls.details,
+        recommendations=ls.recommendations,
+    )
+
+
 def _build_etablissement(row, opco_name: str = "", opco_source: str = "",
-                         idcc_code: str = "", idcc_libelle: str = "") -> EtablissementResponse:
+                         idcc_code: str = "", idcc_libelle: str = "",
+                         enrichment: dict | None = None) -> EtablissementResponse:
     """Construit un EtablissementResponse à partir d'une row asyncpg."""
     naf_code = row["naf"] or ""
     tranche = row["tranche_effectif"] or ""
     cp = row["code_postal"] or ""
     dept = _dept_from_cp(cp)
+    enr = enrichment or {}
 
     # Voie : reconstitution
     parts = [p for p in [row.get("numero_voie"), row.get("type_voie"), row.get("voie")] if p]
     voie = " ".join(parts) if parts else None
+
+    # Nature juridique libellé
+    nj_code = enr.get("nature_juridique", "")
+    nj_libelle = NATURE_JURIDIQUE.get(nj_code, "")
+
+    # Effectif unité légale
+    eff_ul = enr.get("effectif_unite_legale", "")
+    eff_ul_libelle = TRANCHE_MAP.get(eff_ul, "") if eff_ul else ""
 
     return EtablissementResponse(
         siret=row["siret"],
@@ -98,6 +154,17 @@ def _build_etablissement(row, opco_name: str = "", opco_source: str = "",
         ),
         opco=OpcoInfo(nom=opco_name or None, source=opco_source or None),
         idcc=IdccInfo(code=idcc_code or None, libelle=idcc_libelle or None),
+        dirigeant=DirigeantInfo(
+            nom=enr.get("dirigeant_nom") or None,
+            prenom=enr.get("dirigeant_prenom") or None,
+            fonction=enr.get("dirigeant_fonction") or None,
+        ),
+        entreprise=EntrepriseInfo(
+            categorie=enr.get("categorie_entreprise") or None,
+            nature_juridique=NatureJuridiqueInfo(code=nj_code or None, libelle=nj_libelle or None),
+            nombre_etablissements=enr.get("nombre_etablissements") or None,
+            effectif_total=f"{eff_ul_libelle} sal." if eff_ul_libelle else None,
+        ),
         date_creation=str(row["date_creation"]) if row.get("date_creation") else None,
         etat_administratif=row.get("etat_administratif"),
     )
@@ -162,6 +229,118 @@ async def get_etablissement(request: Request, siret: str):
         idcc_code=row["idcc"] or "",
         idcc_libelle=row["convention_libelle"] or "",
     )
+
+
+# ── GET /api/v3/etablissements/{siret}/enrich ───────────────────────────────
+
+
+@router.get(
+    "/etablissements/{siret}/enrich",
+    response_model=EnrichResponse,
+    tags=["referentiel"],
+    summary="Enrichissement externe d'un établissement",
+)
+async def enrich_etablissement(request: Request, siret: str):
+    """Enrichit un établissement via API Recherche Entreprises + Pappers.
+
+    Plus lent que le lookup classique (appels externes). Résultats cachés.
+    """
+    import re
+    from datetime import datetime, timezone
+
+    from siret_matcher.enrichment.api_recherche import enrich_from_api
+    from siret_matcher.enrichment.pappers import enrich_from_pappers
+    from siret_matcher.enrichment.email_finder import find_emails
+    from siret_matcher.models_v3 import EmailResultResponse
+
+    if not re.match(r"^\d{14}$", siret):
+        raise HTTPException(status_code=400, detail="Format SIRET invalide")
+
+    siren = siret[:9]
+    http_client = request.app.state.http_client
+
+    # Lookup site_web from DB if available
+    pool = request.app.state.pool
+    site_web = ""
+    try:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT denomination FROM etablissements WHERE siret = $1", siret
+            )
+    except Exception:
+        row = None
+
+    # Appels en parallèle : API + Pappers
+    api_data, pappers_data = await asyncio.gather(
+        enrich_from_api(http_client, siren),
+        enrich_from_pappers(http_client, siren),
+    )
+
+    sources = []
+    if api_data:
+        sources.append("api_recherche_entreprises")
+    if pappers_data:
+        sources.append("pappers")
+
+    # Email finder (uses dirigeant from API data)
+    # site_web comes from query param if provided
+    site_web = request.query_params.get("site_web", "")
+    email_results = await find_emails(
+        http_client,
+        site_web=site_web,
+        dirigeant_nom=api_data.get("dirigeant_nom", ""),
+        dirigeant_prenom=api_data.get("dirigeant_prenom", ""),
+    )
+    if email_results:
+        sources.append("email_finder")
+
+    nj_code = api_data.get("nature_juridique", "")
+    eff_ul = api_data.get("effectif_unite_legale", "")
+
+    enrich_response = EnrichResponse(
+        siret=siret,
+        dirigeant=DirigeantInfo(
+            nom=api_data.get("dirigeant_nom") or None,
+            prenom=api_data.get("dirigeant_prenom") or None,
+            fonction=api_data.get("dirigeant_fonction") or None,
+        ),
+        financier=FinancierInfo(
+            chiffre_affaires=pappers_data.get("chiffre_affaires"),
+            resultat_net=pappers_data.get("resultat_net"),
+            date_comptes=pappers_data.get("date_comptes"),
+            source="pappers" if pappers_data else None,
+        ),
+        entreprise=EntrepriseInfo(
+            categorie=api_data.get("categorie_entreprise") or None,
+            nature_juridique=NatureJuridiqueInfo(
+                code=nj_code or None,
+                libelle=NATURE_JURIDIQUE.get(nj_code, "") or None,
+            ),
+            nombre_etablissements=api_data.get("nombre_etablissements") or None,
+            effectif_total=TRANCHE_MAP.get(eff_ul, "") + " sal." if TRANCHE_MAP.get(eff_ul) else None,
+        ),
+        emails=[
+            EmailResultResponse(
+                email=e.email, confidence=e.confidence,
+                source=e.source, domain_has_mx=e.domain_has_mx,
+            )
+            for e in email_results
+        ],
+        enriched_at=datetime.now(timezone.utc).isoformat(),
+        sources=sources,
+    )
+
+    # Fire-and-forget webhook
+    asyncio.create_task(webhook_manager.emit("enrich.complete", {
+        "siret": siret,
+        "enrichment": {
+            "dirigeant": bool(api_data.get("dirigeant_nom")),
+            "financier": bool(pappers_data.get("chiffre_affaires")),
+            "emails": len(email_results),
+        },
+    }))
+
+    return enrich_response
 
 
 # ── POST /api/v3/match ─────────────────────────────────────────────────────
@@ -256,8 +435,20 @@ async def match_v3(
                 opco_name = NAF_TO_OPCO[naf_prefix]
                 opco_source = "NAF"
 
+        # Enrichment data from the matching pipeline
+        enr = {
+            "dirigeant_nom": r.dirigeant_nom,
+            "dirigeant_prenom": r.dirigeant_prenom,
+            "dirigeant_fonction": r.dirigeant_fonction,
+            "categorie_entreprise": r.categorie_entreprise,
+            "nature_juridique": r.nature_juridique,
+            "nombre_etablissements": r.nombre_etablissements,
+            "effectif_unite_legale": r.effectif_unite_legale,
+        }
+
         etab = _build_etablissement(
-            etab_row, opco_name, opco_source, idcc_code, idcc_libelle
+            etab_row, opco_name, opco_source, idcc_code, idcc_libelle,
+            enrichment=enr,
         ) if etab_row else None
 
         score = r.score
@@ -278,14 +469,31 @@ async def match_v3(
             duration_ms=duration_ms,
         )
 
-        return MatchResponse(
+        lead = _compute_lead_score(r, opco_name, opco_source, idcc_code, etab_row)
+
+        response = MatchResponse(
             matched=True,
             confidence=_confidence(score),
             score=score,
             methode=r.methode,
             etablissement=etab,
+            lead_score=lead,
             debug=debug_info,
         )
+
+        # Fire-and-forget webhook
+        asyncio.create_task(webhook_manager.emit("match.success", {
+            "prospect_input": req.model_dump(),
+            "match_result": {
+                "siret": r.siret,
+                "score": score,
+                "methode": r.methode,
+                "etablissement": etab.model_dump() if etab else None,
+                "lead_score": lead.model_dump() if lead else None,
+            },
+        }))
+
+        return response
     else:
         debug_info = None
         if want_debug:
@@ -325,9 +533,16 @@ async def match_batch_v3(
     request: Request,
     api_key_name: str = Depends(require_api_key),
 ):
-    """Matching en lot avec parallélisme contrôlé."""
+    """Matching en lot avec parallélisme contrôlé (max 50 prospects)."""
     from siret_matcher.matcher import match_one
     from siret_matcher.models import Prospect
+
+    if len(req.prospects) > 50:
+        raise HTTPException(
+            status_code=400,
+            detail="Maximum 50 prospects pour le batch synchrone. "
+                   "Pour les gros volumes, utilisez POST /api/v3/batch (file d'attente asynchrone).",
+        )
 
     prospects = [
         Prospect(
@@ -384,9 +599,22 @@ async def match_batch_v3(
                     opco_name = NAF_TO_OPCO[naf_prefix]
                     opco_source = "NAF"
 
+            enr = {
+                "dirigeant_nom": r.dirigeant_nom,
+                "dirigeant_prenom": r.dirigeant_prenom,
+                "dirigeant_fonction": r.dirigeant_fonction,
+                "categorie_entreprise": r.categorie_entreprise,
+                "nature_juridique": r.nature_juridique,
+                "nombre_etablissements": r.nombre_etablissements,
+                "effectif_unite_legale": r.effectif_unite_legale,
+            }
+
             etab = _build_etablissement(
-                etab_row, opco_name, opco_source, idcc_code, idcc_libelle
+                etab_row, opco_name, opco_source, idcc_code, idcc_libelle,
+                enrichment=enr,
             ) if etab_row else None
+
+            lead = _compute_lead_score(r, opco_name, opco_source, idcc_code, etab_row)
 
             return MatchResponse(
                 matched=True,
@@ -394,6 +622,7 @@ async def match_batch_v3(
                 score=r.score,
                 methode=r.methode,
                 etablissement=etab,
+                lead_score=lead,
             )
         else:
             return MatchResponse(matched=False, confidence="low", score=0.0,
@@ -410,6 +639,23 @@ async def match_batch_v3(
         api_key=api_key_name, total=total, matched=matched_count,
         duration_ms=duration_ms,
     )
+
+    # Webhook batch_complete
+    hot = sum(1 for r in results if r.lead_score and r.lead_score.qualification == "hot")
+    warm = sum(1 for r in results if r.lead_score and r.lead_score.qualification == "warm")
+    cold = sum(1 for r in results if r.lead_score and r.lead_score.qualification == "cold")
+    asyncio.create_task(webhook_manager.emit("match.batch_complete", {
+        "total": total,
+        "matched": matched_count,
+        "taux": round(matched_count / total, 4) if total else 0.0,
+        "duration_ms": duration_ms,
+        "results_summary": {
+            "hot": hot,
+            "warm": warm,
+            "cold": cold,
+            "not_found": total - matched_count,
+        },
+    }))
 
     return BatchResponse(
         total=total,
@@ -918,3 +1164,294 @@ async def get_stats(request: Request):
             "uptime_seconds": uptime,
         },
     }
+
+
+# ── POST /api/v3/scoring/config ─────────────────────────────────────────────
+
+
+@router.get(
+    "/scoring/config",
+    tags=["system"],
+    summary="Configuration actuelle du scoring",
+)
+async def get_scoring_config():
+    """Retourne la configuration de scoring de leads."""
+    return load_scoring_config()
+
+
+@router.post(
+    "/scoring/config",
+    tags=["system"],
+    summary="Modifier la configuration du scoring",
+)
+async def set_scoring_config(
+    config: dict,
+    api_key_name: str = Depends(require_api_key),
+):
+    """Met à jour la configuration de scoring (secteurs prioritaires, seuils, zone géo)."""
+    current = load_scoring_config()
+    current.update(config)
+    save_scoring_config(current)
+    return current
+
+
+# ── Webhook management ────────────────────────────────────────────────────
+
+
+@router.get(
+    "/webhooks",
+    tags=["webhooks"],
+    summary="Liste des webhooks configurés",
+)
+async def list_webhooks(api_key_name: str = Depends(require_api_key)):
+    """Retourne la liste des webhooks avec leur état."""
+    return [
+        {
+            "id": wh.id,
+            "name": wh.name,
+            "url": wh.url,
+            "events": wh.events,
+            "active": wh.active,
+            "retry": wh.retry,
+            "timeout": wh.timeout,
+        }
+        for wh in webhook_manager.webhooks
+    ]
+
+
+@router.post(
+    "/webhooks/test/{webhook_id}",
+    tags=["webhooks"],
+    summary="Envoie un payload de test",
+)
+async def test_webhook(webhook_id: str, api_key_name: str = Depends(require_api_key)):
+    """Envoie un événement de test au webhook spécifié."""
+    result = await webhook_manager.send_test(webhook_id)
+    return result
+
+
+@router.post(
+    "/webhooks/reload",
+    tags=["webhooks"],
+    summary="Recharge la configuration webhooks",
+)
+async def reload_webhooks(api_key_name: str = Depends(require_api_key)):
+    """Recharge le fichier config/webhooks.json."""
+    webhook_manager.reload_config()
+    return {"status": "ok", "count": len(webhook_manager.webhooks)}
+
+
+@router.get(
+    "/webhooks/log",
+    tags=["webhooks"],
+    summary="Derniers envois de webhooks",
+)
+async def get_webhook_log(api_key_name: str = Depends(require_api_key)):
+    """Retourne les derniers envois (succès/échec)."""
+    return [
+        {
+            "webhook_id": e.webhook_id,
+            "event": e.event,
+            "status": e.status,
+            "status_code": e.status_code,
+            "error": e.error,
+            "timestamp": e.timestamp,
+            "duration_ms": e.duration_ms,
+        }
+        for e in reversed(webhook_manager.log_entries)
+    ]
+
+
+# ── Async batch ──────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/batch",
+    tags=["batch"],
+    summary="Batch asynchrone (gros volumes)",
+    status_code=202,
+)
+async def create_batch_job(
+    request: Request,
+    api_key_name: str = Depends(require_api_key),
+):
+    """Crée un job de matching batch asynchrone.
+
+    Retourne immédiatement un job_id. Le traitement se fait en arrière-plan.
+    Interroger GET /api/v3/batch/{job_id} pour suivre l'avancement.
+    """
+    from siret_matcher.queue import batch_queue
+
+    body = await request.json()
+    prospects = body.get("prospects", [])
+    if not prospects:
+        raise HTTPException(status_code=422, detail="La liste prospects est vide")
+
+    concurrency = min(max(body.get("concurrency", 10), 1), 20)
+    callback_url = body.get("callback_url")
+    webhook_events = body.get("webhook_events", True)
+
+    # Convert to dicts for queue
+    prospect_dicts = []
+    for p in prospects:
+        prospect_dicts.append({
+            "nom": p.get("nom", ""),
+            "adresse": p.get("adresse", ""),
+            "code_postal": p.get("code_postal", ""),
+            "ville": p.get("ville", ""),
+            "telephone": p.get("telephone", ""),
+            "site_web": p.get("site_web", ""),
+            "email": p.get("email", ""),
+        })
+
+    job_id = await batch_queue.enqueue(
+        prospect_dicts,
+        concurrency=concurrency,
+        callback_url=callback_url,
+        webhook_events=webhook_events,
+    )
+
+    # Estimate: ~300ms per prospect with concurrency
+    estimated = round(len(prospects) * 0.3 / concurrency, 0)
+
+    return {
+        "job_id": job_id,
+        "status": "queued",
+        "total": len(prospects),
+        "estimated_duration_seconds": int(estimated),
+        "status_url": f"/api/v3/batch/{job_id}",
+    }
+
+
+@router.get(
+    "/batch/{job_id}",
+    tags=["batch"],
+    summary="Statut d'un batch job",
+)
+async def get_batch_status(
+    job_id: str,
+    api_key_name: str = Depends(require_api_key),
+):
+    """Retourne l'état d'avancement d'un batch job."""
+    from siret_matcher.queue import batch_queue
+
+    job = await batch_queue.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job non trouvé")
+
+    result = {
+        "job_id": job.job_id,
+        "status": job.status,
+        "progress": {
+            "total": job.total,
+            "processed": job.processed,
+            "matched": job.matched,
+            "not_found": job.not_found,
+            "percent": job.percent,
+        },
+        "created_at": job.created_at,
+        "started_at": job.started_at,
+    }
+
+    if job.status == "processing" and job.processed > 0 and job.started_at:
+        # ETA based on processing rate
+        from datetime import datetime as dt
+        try:
+            started = dt.fromisoformat(job.started_at)
+            elapsed = (dt.now(timezone.utc) - started).total_seconds()
+            rate = job.processed / elapsed if elapsed > 0 else 0
+            remaining = (job.total - job.processed) / rate if rate > 0 else 0
+            result["eta_seconds"] = round(remaining, 0)
+        except Exception:
+            pass
+
+    if job.status == "completed":
+        result["completed_at"] = job.completed_at
+        result["duration_seconds"] = job.duration_seconds
+        result["results_url"] = f"/api/v3/batch/{job_id}/results"
+        result["download_csv_url"] = f"/api/v3/batch/{job_id}/results.csv"
+
+    if job.status == "failed":
+        result["error"] = job.error
+
+    return result
+
+
+@router.get(
+    "/batch/{job_id}/results",
+    tags=["batch"],
+    summary="Résultats d'un batch job",
+)
+async def get_batch_results(
+    job_id: str,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=1000, ge=1, le=10000),
+    api_key_name: str = Depends(require_api_key),
+):
+    """Retourne les résultats paginés d'un batch job."""
+    from siret_matcher.queue import batch_queue
+
+    job = await batch_queue.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job non trouvé")
+    if job.status not in ("completed", "processing"):
+        raise HTTPException(status_code=409, detail=f"Job en état '{job.status}', pas de résultats disponibles")
+
+    results = await batch_queue.get_results(job_id, offset=offset, limit=limit)
+    return {
+        "job_id": job_id,
+        "total": job.processed,
+        "offset": offset,
+        "limit": limit,
+        "results": results,
+    }
+
+
+@router.get(
+    "/batch/{job_id}/results.csv",
+    tags=["batch"],
+    summary="Télécharger les résultats en CSV",
+)
+async def download_batch_csv(
+    job_id: str,
+    api_key_name: str = Depends(require_api_key),
+):
+    """Télécharge les résultats d'un batch job en CSV."""
+    import csv
+    import io
+
+    from starlette.responses import StreamingResponse
+    from siret_matcher.queue import batch_queue
+
+    job = await batch_queue.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job non trouvé")
+    if job.status != "completed":
+        raise HTTPException(status_code=409, detail="Job pas encore terminé")
+
+    results = await batch_queue.get_all_results(job_id)
+
+    output = io.StringIO()
+    fieldnames = [
+        "prospect_nom", "matched", "siret", "siren", "denomination",
+        "score", "methode",
+    ]
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    for r in results:
+        writer.writerow({
+            "prospect_nom": r.get("prospect_nom", ""),
+            "matched": "OUI" if r.get("matched") else "NON",
+            "siret": r.get("siret", ""),
+            "siren": r.get("siren", ""),
+            "denomination": r.get("denomination", ""),
+            "score": r.get("score", 0),
+            "methode": r.get("methode", ""),
+        })
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=batch_{job_id[:8]}.csv"},
+    )
