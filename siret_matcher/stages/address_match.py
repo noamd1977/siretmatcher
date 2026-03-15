@@ -6,10 +6,12 @@ C'est le game-changer pour les franchises :
 → souvent il n'y en a qu'un seul = match direct
 """
 import logging
+import time
 
 import httpx
 
 from siret_matcher.db import SireneDB
+from siret_matcher.metrics import EXTERNAL_API_DURATION, EXTERNAL_API_ERRORS
 from siret_matcher.models import Prospect, SireneResult
 from siret_matcher.normalizer import clean_voie, strip_accents
 from siret_matcher.opco import format_effectif, get_opco
@@ -22,16 +24,19 @@ BAN_API = "https://api-adresse.data.gouv.fr/search/"
 
 async def geocode_ban(client: httpx.AsyncClient, adresse: str, code_postal: str) -> dict | None:
     """Géocoder une adresse via l'API BAN (Base Adresse Nationale).
-    
+
     Retourne les composants structurés de l'adresse.
     """
+    t0 = time.perf_counter()
     try:
         resp = await client.get(BAN_API, params={
             "q": adresse,
             "postcode": code_postal,
             "limit": "1",
         }, timeout=10)
+        EXTERNAL_API_DURATION.labels(api="ban").observe(time.perf_counter() - t0)
         if resp.status_code != 200:
+            EXTERNAL_API_ERRORS.labels(api="ban", error_type="http_error").inc()
             return None
         features = resp.json().get("features", [])
         if not features:
@@ -44,7 +49,12 @@ async def geocode_ban(client: httpx.AsyncClient, adresse: str, code_postal: str)
             "city": props.get("city", ""),
             "score": props.get("score", 0),
         }
+    except httpx.TimeoutException:
+        EXTERNAL_API_ERRORS.labels(api="ban", error_type="timeout").inc()
+        logger.debug(f"BAN geocode timeout")
+        return None
     except Exception as e:
+        EXTERNAL_API_ERRORS.labels(api="ban", error_type="connection_error").inc()
         logger.debug(f"BAN geocode error: {e}")
         return None
 

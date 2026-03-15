@@ -1,9 +1,11 @@
 """Étapes 1-2 : API Recherche d'Entreprises (gouv.fr)."""
 import asyncio
 import logging
+import time
 
 import httpx
 
+from siret_matcher.metrics import EXTERNAL_API_DURATION, EXTERNAL_API_ERRORS
 from siret_matcher.models import Prospect, SireneResult
 from siret_matcher.normalizer import clean_voie, strip_accents
 from siret_matcher.opco import format_effectif, get_opco
@@ -18,12 +20,27 @@ RATE_LIMIT = asyncio.Semaphore(5)  # 5 requêtes concurrentes max
 async def _search(client: httpx.AsyncClient, params: dict) -> list[dict]:
     """Appel API avec rate limiting."""
     async with RATE_LIMIT:
+        t0 = time.perf_counter()
         try:
             resp = await client.get(API_BASE, params=params, timeout=15)
+            EXTERNAL_API_DURATION.labels(api="recherche_entreprises").observe(
+                time.perf_counter() - t0
+            )
             if resp.status_code == 200:
                 return resp.json().get("results", [])
+            EXTERNAL_API_ERRORS.labels(
+                api="recherche_entreprises", error_type="http_error"
+            ).inc()
             logger.warning(f"API Recherche status {resp.status_code}: {params.get('q')}")
+        except httpx.TimeoutException:
+            EXTERNAL_API_ERRORS.labels(
+                api="recherche_entreprises", error_type="timeout"
+            ).inc()
+            logger.warning(f"API Recherche timeout: {params.get('q')}")
         except Exception as e:
+            EXTERNAL_API_ERRORS.labels(
+                api="recherche_entreprises", error_type="connection_error"
+            ).inc()
             logger.warning(f"API Recherche error: {e}")
         await asyncio.sleep(0.2)
     return []

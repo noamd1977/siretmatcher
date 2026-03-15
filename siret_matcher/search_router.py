@@ -5,8 +5,11 @@ Rollback = commenter 2 lignes dans api.py + restart.
 """
 import asyncio
 import logging
+import time
 
 from fastapi import APIRouter, HTTPException, Request
+
+from .logging_config import log_structured
 
 from .search_models import (
     REGION_DEPARTEMENTS,
@@ -80,6 +83,7 @@ async def search_prospects(req: SearchProspectsRequest, request: Request):
     Croise etablissements × siret_opco × idcc_libelles.
     Filtre par département, taille, IDCC et/ou NAF.
     """
+    t0 = time.perf_counter()
     if not req.idcc and not req.naf and not req.section_naf:
         raise HTTPException(
             status_code=422,
@@ -161,7 +165,14 @@ async def search_prospects(req: SearchProspectsRequest, request: Request):
         for r in rows
     ]
 
-    logger.info(f"search/prospects: {total} résultats, retourné {len(results)} (offset={req.offset})")
+    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+    log_structured(
+        logger, logging.INFO, "search",
+        departements=req.departements,
+        taille=req.taille.value if req.taille else None,
+        results_count=total or 0,
+        duration_ms=duration_ms,
+    )
 
     return SearchProspectsResponse(
         total=total or 0,
