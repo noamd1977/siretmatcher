@@ -1,0 +1,16 @@
+{
+  "keys": [
+    {
+      "key": "REPLACE_WITH_A_SECURE_RANDOM_KEY",
+      "name": "n8n-workflows",
+      "created": "2026-03-15",
+      "active": true
+    },
+    {
+      "key": "REPLACE_WITH_ANOTHER_SECURE_KEY",
+      "name": "dev-testing",
+      "created": "2026-03-15",
+      "active": true
+    }
+  ]
+}

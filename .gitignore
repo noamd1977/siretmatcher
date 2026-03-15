@@ -38,3 +38,4 @@ Thumbs.db
 
 # Credentials
 service_account.json
+config/api_keys.json
