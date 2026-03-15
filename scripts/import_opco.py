@@ -542,6 +542,21 @@ def main():
     # -- Sync IDCC --
     sync_idcc()
 
+    # -- Invalidation du cache Redis --
+    try:
+        import asyncio
+        from siret_matcher.cache import connect, invalidate_all, close
+
+        async def _invalidate():
+            await connect()
+            await invalidate_all()
+            await close()
+
+        asyncio.run(_invalidate())
+        log.info("Cache Redis invalidé après import")
+    except Exception as e:
+        log.warning(f"Invalidation cache Redis échouée (non critique) : {e}")
+
     elapsed = time.time() - t_global
     log.info("")
     log.info("=" * 60)
